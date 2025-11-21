@@ -1,0 +1,8 @@
+# Azure Agent Framework
+agent-framework-azure-ai>=0.1.0
+
+# Azure Authentication
+azure-identity>=1.15.0
+
+# Environment Configuration
+python-dotenv>=1.0.0

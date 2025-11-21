@@ -25,17 +25,20 @@ Final Proposal Output
 
 ## Agent Specifications
 
-### 1. Question Agent (Handoff)
-**Orchestration**: HandoffBuilder with single coordinator
+### 1. Question Agent (Interactive Chat)
+**Orchestration**: Direct ChatAgent.run_stream() with thread-based conversation
 
 **Instructions**: Ask 1-2 simple questions about workload and region, then output "We are DONE!"
 
-**Termination**: Text detection of "We are DONE!" in assistant messages
+**Termination**: Text detection of "We are DONE!" in agent responses (max 10 turns)
 ```python
-lambda conv: any("We are DONE!" in msg.text for msg in conv if msg.role.value == "assistant")
+if "We are DONE!" in last_response:
+    requirements_summary = last_response
+    break
 ```
 
 **Mock Behavior**: 
+- Greeting: "Hello! I'll help you price an Azure solution."
 - Question 1: "What type of workload?"
 - Question 2: "What region?"
 - Output: Simple summary + "We are DONE!"
@@ -93,36 +96,50 @@ Total Annual Cost: $1,200
 
 ## Workflow Orchestration
 
-### Handoff Workflow
+### Question Agent (Direct ChatAgent)
 ```python
-from agent_framework import HandoffBuilder
+# Create agent and conversation thread
+question_agent = create_question_agent(client)
+thread = question_agent.get_new_thread()
 
-workflow = (
-    HandoffBuilder(
-        name="azure_requirements_gathering",
-        participants=[question_agent]
-    )
-    .set_coordinator("question_agent")
-    .with_termination_condition(
-        lambda conv: any("We are DONE!" in msg.text for msg in conv if msg.role.value == "assistant")
-    )
-    .build()
-)
+# Initial greeting
+async for update in question_agent.run_stream("Hello! Let's start!", thread=thread):
+    if update.text:
+        print(update.text, end='', flush=True)
+
+# Interactive loop (max 10 turns)
+for turn in range(10):
+    user_input = input("You: ")
+    last_response = ""
+    
+    async for update in question_agent.run_stream(user_input, thread=thread):
+        if update.text:
+            print(update.text, end='', flush=True)
+            last_response += update.text
+    
+    if "We are DONE!" in last_response:
+        requirements_summary = last_response
+        break
 ```
 
 ### Sequential Workflow
 ```python
-from agent_framework import SequentialBuilder
-
-workflow = SequentialBuilder().participants([
-    bom_agent,
-    pricing_agent,
-    proposal_agent
-]).build()
+from agentStreaming Pattern
+**Question Agent** (ChatAgent streaming):
+```python
+async for update in question_agent.run_stream(user_input, thread=thread):
+    if update.text:
+        print(update.text, end='', flush=True)
+        last_response += update.text
 ```
 
-### Event Loop Pattern
+**Sequential Workflow** (Workflow events):
 ```python
+async for event in workflow.run_stream(requirements):
+    if isinstance(event, AgentRunUpdateEvent):
+        print(event.data, end='', flush=True)
+    elif isinstance(event, WorkflowOutputEvent):
+        final_proposal = event.data
 async for event in workflow.run_stream(initial_message):
     if isinstance(event, RequestInfoEvent):
         # Prompt user for input

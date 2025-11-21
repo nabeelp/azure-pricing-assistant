@@ -12,9 +12,9 @@ Phase 2 implements intelligent agents with real Azure Retail Prices API integrat
 
 ## High-Level Flow
 ```
-User Input → Question Agent (Intelligent Q&A)
+Question Agent (Interactive Chat with Thread)
            ↓
-      "We are DONE!" when sufficient info gathered
+      "We are DONE!" when sufficient info gathered (max 10 turns)
            ↓
 Requirements Summary → Sequential Workflow:
   1. BOM Agent → JSON with appropriate SKUs
@@ -26,8 +26,8 @@ Client-Ready Proposal
 
 ## Agent Specifications
 
-### 1. Question Agent (Enhanced Handoff)
-**Orchestration**: HandoffBuilder with single coordinator
+### 1. Question Agent (Enhanced Interactive Chat)
+**Orchestration**: ChatAgent.run_stream() with thread-based conversation (max 10 turns)
 
 **Intelligence**: Adapts questions based on workload type and user responses
 

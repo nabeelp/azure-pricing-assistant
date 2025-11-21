@@ -9,44 +9,46 @@ Build minimal workflow structure with 4 mock agents, implement question-answer i
 
 ### ✅ Task 1.1: Initialize Python Project Structure
 
-- [ ] Create `src/agents/` directory
-- [ ] Create agent placeholder files:
-  - [ ] `question_agent.py`
-  - [ ] `bom_agent.py`
-  - [ ] `pricing_agent.py`
-  - [ ] `proposal_agent.py`
-- [ ] Create `src/utils/` directory for helper functions
-- [ ] Create `requirements.txt` with dependencies:
-  - [ ] `agent-framework-azure-ai`
-  - [ ] `azure-identity`
-  - [ ] `python-dotenv`
-- [ ] Create `.env.example` for configuration template
-- [ ] Create `.gitignore` for Python/VS Code/Azure
-- [ ] Create `main.py` as entry point
-- [ ] Create `README.md` with setup instructions
+- [x] Create `src/agents/` directory
+- [x] Create agent placeholder files:
+  - [x] `question_agent.py`
+  - [x] `bom_agent.py`
+  - [x] `pricing_agent.py`
+  - [x] `proposal_agent.py`
+- [x] Create `src/utils/` directory for helper functions
+- [x] Create `requirements.txt` with dependencies:
+  - [x] `agent-framework-azure-ai`
+  - [x] `azure-identity`
+  - [x] `python-dotenv`
+- [x] Create `.env.example` for configuration template
+- [x] Create `.gitignore` for Python/VS Code/Azure
+- [x] Create `main.py` as entry point
+- [x] Create `README.md` with setup instructions
 
 ---
 
 ### ✅ Task 1.2: Create Mock Question Agent
 
-- [ ] Implement `create_question_agent()` using `AzureAIAgentClient.create_agent()`
-- [ ] Copy Phase 1 instructions exactly from `specs/phase1/AGENT_INSTRUCTIONS.md`
-- [ ] Configure agent to ask 1-2 simple questions:
-  - [ ] Question about workload type
-  - [ ] Question about Azure region
-- [ ] Add hardcoded requirements summary ending with "We are DONE!"
-- [ ] Build HandoffBuilder workflow:
-  - [ ] Set single coordinator (question_agent)
-  - [ ] Implement termination condition detecting "We are DONE!"
-- [ ] Test agent creation and basic response
+- [x] Implement `create_question_agent()` using ChatAgent pattern
+- [x] Copy Phase 1 instructions exactly from `specs/phase1/AGENT_INSTRUCTIONS.md`
+- [x] Configure agent to ask 1-2 simple questions:
+  - [x] Question about workload type
+  - [x] Question about Azure region
+- [x] Add hardcoded requirements summary ending with "We are DONE!"
+- [x] Use direct ChatAgent.run_stream() with thread:
+  - [x] Create conversation thread for multi-turn context
+  - [x] Implement 10-turn limit safeguard
+  - [x] Detect "We are DONE!" in agent responses
+  - [x] Provide initial greeting prompt
+- [x] Test agent creation and basic response
 
 ---
 
 ### ✅ Task 1.3: Implement Mock BOM, Pricing, Proposal Agents
 
-- [ ] Create `create_bom_agent()`:
-  - [ ] Copy Phase 1 instructions from `specs/phase1/AGENT_INSTRUCTIONS.md`
-  - [ ] Configure to return hardcoded JSON:
+- [x] Create `create_bom_agent()`:
+  - [x] Copy Phase 1 instructions from `specs/phase1/AGENT_INSTRUCTIONS.md`
+  - [x] Configure to return hardcoded JSON:
     ```json
     [{
       "serviceName": "Virtual Machines",
@@ -57,90 +59,106 @@ Build minimal workflow structure with 4 mock agents, implement question-answer i
       "hours_per_month": 730
     }]
     ```
-- [ ] Create `create_pricing_agent()`:
-  - [ ] Copy Phase 1 instructions from `specs/phase1/AGENT_INSTRUCTIONS.md`
-  - [ ] Configure to return hardcoded cost data:
+- [x] Create `create_pricing_agent()`:
+  - [x] Copy Phase 1 instructions from `specs/phase1/AGENT_INSTRUCTIONS.md`
+  - [x] Configure to return hardcoded cost data:
     ```json
     {
       "items": [{"service": "VM", "cost": 100}],
       "total_monthly": 100
     }
     ```
-- [ ] Create `create_proposal_agent()`:
-  - [ ] Copy Phase 1 instructions from `specs/phase1/AGENT_INSTRUCTIONS.md`
-  - [ ] Configure to return simple formatted proposal text
-- [ ] Test each agent individually
+- [x] Create `create_proposal_agent()`:
+  - [x] Copy Phase 1 instructions from `specs/phase1/AGENT_INSTRUCTIONS.md`
+  - [x] Configure to return simple formatted proposal text
+- [x] Test each agent individually
 
 ---
 
 ### ✅ Task 1.4: Build Hybrid Workflow Orchestration
 
-- [ ] Create `run_question_workflow()` function:
-  - [ ] Use HandoffBuilder with question_agent
-  - [ ] Set termination condition for "We are DONE!"
-  - [ ] Return requirements summary from WorkflowCompletedEvent
-- [ ] Create `run_sequential_workflow()` function:
-  - [ ] Use SequentialBuilder with [bom_agent, pricing_agent, proposal_agent]
-  - [ ] Accept requirements summary as input
-  - [ ] Return final proposal from WorkflowCompletedEvent
-- [ ] Implement transition logic in `main.py`:
-  - [ ] Run question workflow first
-  - [ ] Extract requirements from completion event
-  - [ ] Pass requirements to sequential workflow
-- [ ] Add logging for workflow stage transitions
+- [x] Create `run_question_workflow()` function:
+  - [x] Use ChatAgent.run_stream() with thread-based conversation
+  - [x] Detect "We are DONE!" in streaming responses
+  - [x] Return requirements summary parsed from final agent response
+- [x] Create `run_sequential_workflow()` function:
+  - [x] Use SequentialBuilder with [bom_agent, pricing_agent, proposal_agent]
+  - [x] Accept requirements summary as input
+  - [x] Return final proposal from WorkflowOutputEvent
+- [x] Implement transition logic in `main.py`:
+  - [x] Run question workflow first
+  - [x] Extract requirements from completion event
+  - [x] Pass requirements to sequential workflow
+- [x] Add logging for workflow stage transitions
 
 ---
 
-### ✅ Task 1.5: Implement Interactive Q&A Event Loop
+### ✅ Task 1.5: Implement Interactive Q&A Loop
 
-- [ ] In `main()`, initialize with: `workflow.run_stream("I need help pricing an Azure solution")`
-- [ ] Implement event processing loop:
-  - [ ] Detect `RequestInfoEvent`:
-    - [ ] Extract request ID and prompt
-    - [ ] Display prompt to user
-    - [ ] Collect user input via `input()`
-  - [ ] Detect `WorkflowCompletedEvent`:
-    - [ ] Extract final conversation
-    - [ ] Break loop
-  - [ ] Detect `AgentRunUpdateEvent`:
-    - [ ] Print agent responses in real-time
-- [ ] Send user responses:
-  - [ ] Use `workflow.send_responses_streaming({request_id: user_input})`
-- [ ] Continue loop until "We are DONE!" triggers termination
-- [ ] Print final conversation history at completion
+- [x] Initialize with automatic greeting: `agent.run_stream("Hello! Let's start!", thread=thread)`
+- [x] Implement conversation loop (max 10 turns):
+  - [x] Get user input via `input("You: ")`
+  - [x] Stream agent responses using `agent.run_stream(user_input, thread=thread)`
+  - [x] Print streaming updates in real-time via `update.text`
+  - [x] Accumulate complete response in `last_response`
+- [x] Termination detection:
+  - [x] Check each response for "We are DONE!"
+  - [x] Extract requirements summary from final response
+  - [x] Break loop when termination signal detected
+- [x] Safety limits:
+  - [x] Maximum 10 turns to prevent infinite loops
+  - [x] Raise error if limit exceeded without completion
 
 ---
 
 ### ✅ Task 1.6: End-to-End Testing
 
-- [ ] Run `python main.py`
-- [ ] Verify Question Agent behavior:
-  - [ ] Asks at least 1 question about workload
-  - [ ] Asks about Azure region
-  - [ ] Outputs "We are DONE!" after gathering info
-- [ ] Test user interaction:
-  - [ ] Provide answer: "Web application"
-  - [ ] Provide answer: "East US"
-  - [ ] Confirm agent responds appropriately
-- [ ] Validate Q&A workflow termination:
-  - [ ] Verify "We are DONE!" detected
-  - [ ] Confirm handoff workflow exits
-- [ ] Verify transition to sequential workflow:
-  - [ ] Check automatic handoff to BOM agent
-  - [ ] Confirm requirements passed correctly
-- [ ] Check sequential execution:
-  - [ ] BOM agent executes and returns mock JSON
-  - [ ] Pricing agent executes and returns mock cost
-  - [ ] Proposal agent executes and returns mock proposal
-- [ ] Validate final output:
-  - [ ] Final proposal prints to console
-  - [ ] Contains expected mock data
-- [ ] Document any issues or improvements needed
+- [x] Run `python main.py`
+- [x] Verify Question Agent behavior:
+  - [x] Asks at least 1 question about workload
+  - [x] Asks about Azure region
+  - [x] Outputs "We are DONE!" after gathering info
+- [x] Test user interaction:
+  - [x] Provide answer: "Web application"
+  - [x] Provide answer: "East US"
+  - [x] Confirm agent responds appropriately
+- [x] Validate Q&A workflow termination:
+  - [x] Verify "We are DONE!" detected
+  - [x] Confirm handoff workflow exits
+- [x] Verify transition to sequential workflow:
+  - [x] Check automatic handoff to BOM agent
+  - [x] Confirm requirements passed correctly
+- [x] Check sequential execution:
+  - [x] BOM agent executes and returns mock JSON
+  - [x] Pricing agent executes and returns mock cost
+  - [x] Proposal agent executes and returns mock proposal
+- [x] Validate final output:
+  - [x] Final proposal prints to console
+  - [x] Contains expected mock data
+- [x] Document any issues or improvements needed
 
 ---
 
 ## Known Issues
-None yet
+
+### Cosmetic Warning: Unclosed Client Session
+**Status**: Low priority cosmetic issue  
+**Description**: When the application exits, asyncio logs warnings about unclosed `aiohttp.client.ClientSession` and `TCPConnector` objects from the Azure AI client.  
+**Impact**: None - workflow completes successfully, this is just cleanup logging  
+**Fix**: Would require explicit client cleanup using context managers or `finally` blocks to close sessions before exit  
+**Priority**: Low - does not affect functionality
+
+### Architectural Evolution: From HandoffBuilder to Direct ChatAgent
+**Status**: IMPLEMENTED ✅  
+**Previous Approach**: Used HandoffBuilder workflow with RequestInfoEvent/send_responses_streaming pattern  
+**Current Approach**: Direct ChatAgent.run_stream() with thread-based conversation management  
+**Benefits**:
+- Simpler code - no workflow orchestration overhead for single-agent Q&A
+- Native conversation thread management with `agent.get_new_thread()`
+- Cleaner streaming - just `update.text` instead of event type checking
+- Better for interactive chat patterns (Question Agent use case)
+**When to Use Workflows**: Multi-agent orchestration (BOM → Pricing → Proposal still uses SequentialBuilder)  
+**Reference**: [Multi-turn Conversation Pattern](https://learn.microsoft.com/en-us/agent-framework/tutorials/agents/multi-turn-conversation?pivots=programming-language-python)
 
 ---
 

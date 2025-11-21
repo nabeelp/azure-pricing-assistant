@@ -9,8 +9,11 @@ Replace mock responses with intelligent prompt engineering, add Azure Retail Pri
 
 ### ✅ Task 2.1: Enhance Question Agent with Smart Prompting
 
+**Note**: Question Agent uses `ChatAgent.run_stream()` with thread (not HandoffBuilder workflow)
+
 - [ ] Update `question_agent.py` with Phase 2 instructions from `specs/phase2/AGENT_INSTRUCTIONS.md`
 - [ ] Copy enhanced instructions EXACTLY (do not paraphrase)
+- [ ] Maintain ChatAgent pattern with thread-based conversation (max 10 turns)
 - [ ] Verify instruction includes intelligent question flow:
   - [ ] First: Workload type (web, database, analytics, ML, etc.)
   - [ ] Second: Scale requirements (users, requests, data volume)
