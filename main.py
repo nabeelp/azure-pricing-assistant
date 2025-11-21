@@ -7,6 +7,8 @@ from azure.identity.aio import DefaultAzureCredential
 from agent_framework_azure_ai import AzureAIAgentClient
 from agent_framework import SequentialBuilder
 from agent_framework import WorkflowOutputEvent, AgentRunUpdateEvent
+from agent_framework.observability import setup_observability, get_tracer
+from opentelemetry.trace import SpanKind
 
 from src.agents import (
     create_question_agent,
@@ -127,6 +129,9 @@ async def main():
     """Main entry point for Phase 1 implementation."""
     # Load environment variables
     load_dotenv()
+
+    # Setup observability
+    setup_observability()
     
     endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
     if not endpoint:
@@ -145,19 +150,23 @@ async def main():
         )
         
         try:
-            # Step 1: Requirements gathering via handoff workflow
-            requirements = await run_question_workflow(client)
-            
-            if not requirements:
-                print("Error: No requirements gathered")
-                return
-            
-            # Step 2: BOM → Pricing → Proposal via sequential workflow
-            proposal = await run_sequential_workflow(client, requirements)
-            
-            print("\n" + "=" * 60)
-            print("Workflow completed successfully!")
-            
+            with get_tracer().start_as_current_span("Azure Seller Assistant", kind=SpanKind.CLIENT) as top_span:
+                    
+                # Step 1: Requirements gathering via handoff workflow
+                with get_tracer().start_as_current_span("Requirements Gathering", kind=SpanKind.CLIENT) as requirements_span:
+                    requirements = await run_question_workflow(client)
+                
+                if not requirements:
+                    print("Error: No requirements gathered")
+                    return
+                
+                # Step 2: BOM → Pricing → Proposal via sequential workflow
+                with get_tracer().start_as_current_span("Proposal Workflow", kind=SpanKind.CLIENT) as proposal_span:
+                    proposal = await run_sequential_workflow(client, requirements)
+                
+                print("\n" + "=" * 60)
+                print("Workflow completed successfully!")
+                
         except Exception as e:
             print(f"\nError: {e}")
             import traceback
