@@ -14,6 +14,10 @@ Replace mock responses with intelligent prompt engineering, add Azure Retail Pri
 - [ ] Update `question_agent.py` with Phase 2 instructions from `specs/phase2/AGENT_INSTRUCTIONS.md`
 - [ ] Copy enhanced instructions EXACTLY (do not paraphrase)
 - [ ] Maintain ChatAgent pattern with thread-based conversation (max 10 turns)
+- [ ] Configure Microsoft Learn MCP tool access:
+  - [ ] Ensure `microsoft_docs_search` tool is available to agent
+  - [ ] Agent can query Azure documentation for service recommendations
+  - [ ] Agent uses latest Azure service information when asking questions
 - [ ] Verify instruction includes intelligent question flow:
   - [ ] First: Workload type (web, database, analytics, ML, etc.)
   - [ ] Second: Scale requirements (users, requests, data volume)
@@ -35,6 +39,10 @@ Replace mock responses with intelligent prompt engineering, add Azure Retail Pri
 
 - [ ] Update `bom_agent.py` with Phase 2 instructions from `specs/phase2/AGENT_INSTRUCTIONS.md`
 - [ ] Copy JSON schema template exactly
+- [ ] Configure Microsoft Learn MCP tool access:
+  - [ ] Ensure `microsoft_docs_search` tool is available to agent
+  - [ ] Agent can query Azure documentation for service names and SKUs
+  - [ ] Agent uses latest Azure service information when building BOM
 - [ ] Verify service-to-SKU mapping guidance included
 - [ ] Verify default `hours_per_month: 730` instruction
 - [ ] Implement JSON extraction logic:

@@ -6,6 +6,7 @@ Phase 2 implements intelligent agents with real Azure Retail Prices API integrat
 ## Technology Stack
 - **Framework**: Microsoft Agent Framework (`agent-framework-azure-ai`)
 - **AI Service**: Azure AI Foundry Agent Service
+- **MCP Tools**: Microsoft Learn MCP Server for documentation access
 - **Pricing API**: Azure Retail Prices API (https://prices.azure.com/api/retail/prices)
 - **Authentication**: Azure CLI credentials
 - **Language**: Python 3.10+
@@ -31,6 +32,16 @@ Client-Ready Proposal
 
 **Intelligence**: Adapts questions based on workload type and user responses
 
+**MCP Tools**: Uses Microsoft Learn MCP documentation tool to access latest Azure service information
+- Tool: `microsoft_docs_search` - Search official Microsoft/Azure documentation
+- Purpose: Retrieve current Azure service capabilities, recommendations, and best practices
+- Usage: Agent queries documentation to:
+  - Understand latest Azure service offerings for specific workloads
+  - Get current SKU options and configurations
+  - Access up-to-date region availability
+  - Reference best practices for service selection
+- Benefit: Ensures questions and recommendations reflect latest Azure features and guidance
+
 **Question Flow**:
 1. Workload type (web, database, analytics, ML, etc.)
 2. Scale requirements (users, requests, data volume)
@@ -44,6 +55,16 @@ Client-Ready Proposal
 
 ### 2. BOM Agent (Enhanced Sequential - Stage 1)
 **Intelligence**: Maps requirements to appropriate Azure services and SKUs
+
+**MCP Tools**: Uses Microsoft Learn MCP documentation tool for service/SKU verification
+- Tool: `microsoft_docs_search` - Search official Microsoft/Azure documentation
+- Purpose: Verify exact service names, SKU identifiers, and current tier options
+- Usage: Agent queries documentation to:
+  - Confirm latest service names (e.g., "Azure App Service" vs legacy names)
+  - Validate SKU identifiers and tier options for specific services
+  - Check region availability for services and SKUs
+  - Get current configuration recommendations for workload types
+- Benefit: Ensures BOM uses accurate, current service names and valid SKU identifiers
 
 **Service Mapping**:
 - Web apps → Azure App Service or VMs
