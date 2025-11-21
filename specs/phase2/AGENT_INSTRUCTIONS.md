@@ -7,7 +7,7 @@ Phase 2 implements intelligent prompt engineering, Azure Retail Prices API integ
 
 ## Question Agent Instructions
 
-**Implementation Note**: This agent uses `ChatAgent.run_stream()` with thread-based conversation management, not HandoffBuilder. The agent maintains context across multiple turns (max 10) until completion.
+**Implementation Note**: This agent uses `ChatAgent.run_stream()` with thread-based conversation management, not HandoffBuilder. The agent maintains context across multiple turns (max 20) until completion.
 
 **MCP Tools Available**: The agent has access to `microsoft_docs_search` to query official Microsoft/Azure documentation. Use this tool to:
 - Get latest information about Azure services and their capabilities

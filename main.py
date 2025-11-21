@@ -47,8 +47,8 @@ async def run_question_workflow(client: AzureAIAgentClient):
     
     print("\n")
     
-    # Interactive loop for conversation (max 10 turns)
-    max_turns = 10
+    # Interactive loop for conversation (max 20 turns)
+    max_turns = 20
     requirements_summary = ""
     
     for turn in range(max_turns):

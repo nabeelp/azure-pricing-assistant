@@ -10,7 +10,7 @@ Phase 1 focuses on establishing workflow orchestration patterns with hardcoded r
 
 ## Architecture
 
-- **Question Agent**: Interactive chat using ChatAgent with thread-based conversation (max 10 turns)
+- **Question Agent**: Interactive chat using ChatAgent with thread-based conversation (max 20 turns)
 - **BOM Agent**: Bill of Materials generation
 - **Pricing Agent**: Cost calculation
 - **Proposal Agent**: Professional proposal generation
@@ -139,7 +139,7 @@ azure-seller-assistant/
 
 - ✅ Validate ChatAgent thread-based conversation with "We are DONE!" termination
 - ✅ Test sequential workflow execution (BOM → Pricing → Proposal)
-- ✅ Implement 10-turn safety limit for interactive chat
+- ✅ Implement 20-turn safety limit for interactive chat
 - ✅ Establish hybrid orchestration pattern (chat + workflow)
 
 ## Next Steps (Phase 2)

@@ -13,7 +13,7 @@ Replace mock responses with intelligent prompt engineering, add Azure Retail Pri
 
 - [x] Update `question_agent.py` with Phase 2 instructions from `specs/phase2/AGENT_INSTRUCTIONS.md`
 - [x] Copy enhanced instructions EXACTLY (do not paraphrase)
-- [x] Maintain ChatAgent pattern with thread-based conversation (max 10 turns)
+- [x] Maintain ChatAgent pattern with thread-based conversation (max 20 turns)
 - [x] Configure Microsoft Learn MCP tool access:
   - [x] Ensure `microsoft_docs_search` tool is available to agent
   - [x] Agent can query Azure documentation for service recommendations
