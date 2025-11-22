@@ -213,3 +213,5 @@ None yet
 5. Add unit tests for critical components
 6. Performance optimization
 7. Documentation updates
+8. After 20 turns with the Question agent, continue to the next step
+9. Before moving from the Question agent, present the user with the facts gathered and ask for confirmation
