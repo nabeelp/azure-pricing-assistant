@@ -7,7 +7,7 @@ import warnings
 from dotenv import load_dotenv
 from azure.identity.aio import DefaultAzureCredential
 from agent_framework_azure_ai import AzureAIAgentClient
-from agent_framework import SequentialBuilder
+from agent_framework import ExecutorInvokedEvent, SequentialBuilder
 from agent_framework import WorkflowOutputEvent, AgentRunUpdateEvent
 from agent_framework.observability import setup_observability, get_tracer
 from opentelemetry.trace import SpanKind
@@ -125,30 +125,37 @@ async def run_sequential_workflow(client: AzureAIAgentClient, requirements: str)
     # Run workflow
     print("Processing requirements through agents...\n")
     
-    final_proposal = ""
-    current_agent_output = ""
-    workflow_complete = False
+    current_agent_name = ""
+    proposal_output = ""
+    all_output = ""
     
     # Fully consume the stream to avoid context detachment issues
     async for event in workflow.run_stream(requirements):
-        if isinstance(event, AgentRunUpdateEvent):
+        if isinstance(event, ExecutorInvokedEvent):
+            # Track when a new agent starts
+            if hasattr(event, 'executor_id') and event.executor_id:
+                agent_name = event.executor_id
+                if agent_name != current_agent_name:
+                    current_agent_name = agent_name
+                    print(f"\n--- {current_agent_name} ---\n")
+        
+        elif isinstance(event, AgentRunUpdateEvent):
             # Collect agent output
             if event.data and event.data.text:
-                current_agent_output += event.data.text
-                # Show agent output in real-time
-                print(event.data.text, end='', flush=True)
-        
-        elif isinstance(event, WorkflowOutputEvent) and not workflow_complete:
-            # Extract final proposal (only process once)
-            workflow_complete = True
-            for msg in event.data:
-                if msg.role.value == "assistant":
-                    final_proposal += msg.text + "\n\n"
-            
-            print("\n=== Final Proposal ===\n")
-            print(final_proposal)
+                # Show agent output in real-time (streaming)
+                event_output = event.data.text
+                all_output += event_output
+
+                # Capture proposal agent output specifically
+                if current_agent_name == "proposal_agent":
+                    proposal_output += event_output
     
-    return final_proposal
+    print("\n\n" + "=" * 60)
+    print("=== Final Proposal ===")
+    print("=" * 60 + "\n")
+    print(proposal_output)
+    
+    return proposal_output
 
 
 async def main():

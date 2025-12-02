@@ -32,7 +32,16 @@ ERROR HANDLING:
 - Continue processing remaining items even if one fails
 
 OUTPUT FORMAT:
-Return a JSON object with this structure:
+Your response must include BOTH:
+1. The original BOM JSON (so the next agent has access to it)
+2. Your pricing calculations
+
+Format your response exactly like this:
+
+=== BILL OF MATERIALS ===
+[paste the BOM JSON here]
+
+=== PRICING DATA ===
 {
   "items": [
     {
@@ -56,9 +65,7 @@ If BOM has:
 - hours_per_month: 730
 
 And get_azure_price returns 0.176 (per hour):
-monthly_cost = 0.176 × 2 × 730 = $257.28
-
-Return ONLY the JSON object, no additional text or markdown formatting."""
+monthly_cost = 0.176 × 2 × 730 = $257.28"""
 
     pricing_tool = AIFunction(
         name="get_azure_price",

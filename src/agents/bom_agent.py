@@ -209,10 +209,36 @@ REGION MAPPING (common examples):
 - "Southeast Asia" → "southeastasia"
 
 OUTPUT FORMAT:
-Return ONLY the JSON array, no additional text, explanation, or markdown formatting.
-If you need to include multiple services, add them as additional objects in the array.
+Your response must include BOTH:
+1. A summary of the customer requirements (so the next agent has context)
+2. The BOM JSON array
+
+Format your response exactly like this:
+
+=== CUSTOMER REQUIREMENTS ===
+[Summarize the key requirements: workload type, scale, region, specific services requested]
+
+=== BILL OF MATERIALS ===
+[
+  {
+    "serviceName": "...",
+    "sku": "...",
+    "quantity": 1,
+    "region": "...",
+    "armRegionName": "...",
+    "hours_per_month": 730
+  }
+]
 
 Example for a web app with database:
+
+=== CUSTOMER REQUIREMENTS ===
+- Workload: Web application with database backend
+- Scale: Medium (1000-5000 users)
+- Region: East US
+- Specific services: App Service, SQL Database
+
+=== BILL OF MATERIALS ===
 [
   {
     "serviceName": "Azure App Service",
