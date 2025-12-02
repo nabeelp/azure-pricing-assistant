@@ -2,6 +2,8 @@
 
 import asyncio
 import os
+import sys
+import warnings
 from dotenv import load_dotenv
 from azure.identity.aio import DefaultAzureCredential
 from agent_framework_azure_ai import AzureAIAgentClient
@@ -17,6 +19,21 @@ from src.agents import (
     create_proposal_agent,
 )
 from src.agents.bom_agent import parse_bom_response
+
+
+def suppress_async_generator_errors(loop, context):
+    """Custom exception handler to suppress async generator cleanup errors during shutdown."""
+    message = context.get("message", "")
+    exception = context.get("exception")
+    
+    # Suppress known MCP client cleanup errors during shutdown
+    if "streamablehttp_client" in message or (
+        exception and "cancel scope" in str(exception)
+    ):
+        return  # Suppress these errors
+    
+    # For other errors, use default handling
+    loop.default_exception_handler(context)
 
 
 async def run_question_workflow(client: AzureAIAgentClient):
@@ -40,6 +57,7 @@ async def run_question_workflow(client: AzureAIAgentClient):
     
     last_response = ""
     
+    # Fully consume the stream to avoid context detachment issues
     async for update in question_agent.run_stream(initial_message, thread=thread):
         if update.text:
             print(update.text, end='', flush=True)
@@ -61,6 +79,7 @@ async def run_question_workflow(client: AzureAIAgentClient):
         print("Agent: ", end='', flush=True)
         last_response = ""
         
+        # Fully consume the stream to avoid context detachment issues
         async for update in question_agent.run_stream(user_input, thread=thread):
             if update.text:
                 print(update.text, end='', flush=True)
@@ -107,9 +126,10 @@ async def run_sequential_workflow(client: AzureAIAgentClient, requirements: str)
     print("Processing requirements through agents...\n")
     
     final_proposal = ""
-    bom_response = ""
     current_agent_output = ""
+    workflow_complete = False
     
+    # Fully consume the stream to avoid context detachment issues
     async for event in workflow.run_stream(requirements):
         if isinstance(event, AgentRunUpdateEvent):
             # Collect agent output
@@ -118,29 +138,15 @@ async def run_sequential_workflow(client: AzureAIAgentClient, requirements: str)
                 # Show agent output in real-time
                 print(event.data.text, end='', flush=True)
         
-        elif isinstance(event, WorkflowOutputEvent):
-            # Parse and validate BOM JSON if this is BOM agent output
-            if not bom_response:
-                try:
-                    print("\n\n=== Parsing BOM JSON ===")
-                    bom_data = parse_bom_response(current_agent_output)
-                    print(f"✅ Validated BOM with {len(bom_data)} items:")
-                    for item in bom_data:
-                        print(f"  - {item['serviceName']} ({item['sku']}) x{item['quantity']} in {item['region']}")
-                    bom_response = current_agent_output
-                    current_agent_output = ""
-                except ValueError as e:
-                    print(f"\n❌ BOM Validation Error: {e}")
-                    raise
-            
-            # Extract final proposal
+        elif isinstance(event, WorkflowOutputEvent) and not workflow_complete:
+            # Extract final proposal (only process once)
+            workflow_complete = True
             for msg in event.data:
                 if msg.role.value == "assistant":
                     final_proposal += msg.text + "\n\n"
             
             print("\n=== Final Proposal ===\n")
             print(final_proposal)
-            break
     
     return final_proposal
 
@@ -164,34 +170,57 @@ async def main():
     
     # Create Azure AI client
     async with DefaultAzureCredential() as credential:
-        client = AzureAIAgentClient(
+        async with AzureAIAgentClient(
             project_endpoint=endpoint,
             async_credential=credential
-        )
-        
-        try:
-            with get_tracer().start_as_current_span("Azure Seller Assistant", kind=SpanKind.CLIENT) as top_span:
+        ) as client:
+            try:
+                with get_tracer().start_as_current_span("Azure Seller Assistant", kind=SpanKind.CLIENT) as top_span:
+                        
+                    # Step 1: Requirements gathering via handoff workflow
+                    with get_tracer().start_as_current_span("Requirements Gathering", kind=SpanKind.CLIENT) as requirements_span:
+                        requirements = await run_question_workflow(client)
                     
-                # Step 1: Requirements gathering via handoff workflow
-                with get_tracer().start_as_current_span("Requirements Gathering", kind=SpanKind.CLIENT) as requirements_span:
-                    requirements = await run_question_workflow(client)
-                
-                if not requirements:
-                    print("Error: No requirements gathered")
-                    return
-                
-                # Step 2: BOM → Pricing → Proposal via sequential workflow
-                with get_tracer().start_as_current_span("Proposal Workflow", kind=SpanKind.CLIENT) as proposal_span:
-                    proposal = await run_sequential_workflow(client, requirements)
-                
-                print("\n" + "=" * 60)
-                print("Workflow completed successfully!")
-                
-        except Exception as e:
-            print(f"\nError: {e}")
-            import traceback
-            traceback.print_exc()
+                    if not requirements:
+                        print("Error: No requirements gathered")
+                        return
+                    
+                    # Step 2: BOM → Pricing → Proposal via sequential workflow
+                    with get_tracer().start_as_current_span("Proposal Workflow", kind=SpanKind.CLIENT) as proposal_span:
+                        proposal = await run_sequential_workflow(client, requirements)
+                    
+                    print("\n" + "=" * 60)
+                    print("Workflow completed successfully!")
+                    
+            except Exception as e:
+                print(f"\nError: {e}")
+                import traceback
+                traceback.print_exc()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Set up event loop with custom exception handler to suppress MCP cleanup errors
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.set_exception_handler(suppress_async_generator_errors)
+    
+    try:
+        loop.run_until_complete(main())
+    finally:
+        # Clean shutdown
+        try:
+            # Cancel all pending tasks
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            
+            # Wait for cancellation with a timeout
+            if pending:
+                loop.run_until_complete(asyncio.wait(pending, timeout=2.0))
+            
+            # Shutdown async generators
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass  # Suppress shutdown errors
+        finally:
+            loop.close()
