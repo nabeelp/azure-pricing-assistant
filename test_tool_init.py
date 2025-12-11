@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential
 from agent_framework_azure_ai import AzureAIAgentClient
 from agent_framework import MCPStreamableHTTPTool
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv
 
 print(f"Found .env at: {find_dotenv()}")
 load_dotenv(override=True)
