@@ -73,7 +73,7 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'PYTHON|3.11'
-      alwaysOn: true
+      alwaysOn: appServicePlanSku != 'B1'
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
