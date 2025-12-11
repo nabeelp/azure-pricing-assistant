@@ -90,7 +90,7 @@ Format your response exactly like this:
     }
   ],
   "total_monthly": 257.28,
-   "currency": "USD"
+  "currency": "USD"
 }
 
 CALCULATION EXAMPLE:
