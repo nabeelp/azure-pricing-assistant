@@ -2,6 +2,16 @@
 
 AI-powered Azure pricing solution using Microsoft Agent Framework with multi-agent workflow for requirements gathering, BOM generation, pricing calculation, and proposal creation.
 
+**🌐 Web Application**: Access through a modern web interface for interactive chat-based requirements gathering and proposal generation.
+
+**☁️ Azure Deployment**: Designed to run on Azure App Service with full infrastructure as code using Azure Developer CLI (azd).
+
+## 🚀 Quick Start
+
+**Deploy to Azure in 5 minutes**: See **[QUICKSTART.md](QUICKSTART.md)** for rapid deployment instructions.
+
+**Full deployment guide**: See **[DEPLOYMENT.md](DEPLOYMENT.md)** for comprehensive step-by-step instructions.
+
 ## Architecture
 
 The solution uses a two-stage orchestration pattern:
@@ -20,11 +30,64 @@ The solution uses a two-stage orchestration pattern:
 
 ## Prerequisites
 
+### For Local Development
 - Python 3.10 or higher
 - Azure CLI installed and authenticated (`az login`)
 - Azure AI Foundry project with deployed model (e.g., gpt-4o-mini)
 
-## Setup
+### For Azure Deployment
+- [Azure Developer CLI (azd)](https://aka.ms/install-azd) installed
+- [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) installed
+- Azure subscription with appropriate permissions
+- Azure AI Foundry project endpoint configured
+
+## Quick Start (Azure Deployment)
+
+Deploy the application to Azure in minutes:
+
+```bash
+# 1. Login to Azure
+azd auth login
+az login
+
+# 2. Initialize environment
+azd env new <your-environment-name>
+
+# 3. Set your Azure AI Foundry endpoint
+azd env set AZURE_AI_PROJECT_ENDPOINT "<your-ai-foundry-endpoint>"
+
+# 4. Optional: Change App Service Plan SKU (default: B1)
+azd env set APP_SERVICE_PLAN_SKU "S1"
+
+# 5. Preview the deployment
+azd provision --preview
+
+# 6. Deploy infrastructure and application
+azd up
+```
+
+After deployment completes, you'll receive:
+- **Web App URL**: `https://app-<env>-<token>.azurewebsites.net`
+- **Resource Group**: View in Azure Portal
+- **Application Insights**: Monitor application performance
+
+### Update Deployment
+
+```bash
+# Deploy code changes only
+azd deploy
+
+# Deploy infrastructure and code changes
+azd up
+
+# View environment configuration
+azd env get-values
+
+# Clean up all resources
+azd down
+```
+
+## Local Development Setup
 
 1. **Clone repository**
    ```bash
@@ -66,7 +129,19 @@ The solution uses a two-stage orchestration pattern:
 
 ## Usage
 
-Run the application:
+### Web Application (Recommended)
+
+Start the Flask web server:
+
+```bash
+python app.py
+```
+
+Open your browser to http://localhost:8000 to access the interactive web interface.
+
+### CLI Application (Legacy)
+
+Run the command-line version:
 
 ```bash
 python main.py
@@ -151,7 +226,11 @@ Database deployed in the East US region...
 ## Project Structure
 
 ```
-azure-seller-assistant/
+azure-pricing-assistant/
+├── app.py                      # Flask web application entry point
+├── main.py                     # CLI entry point (legacy)
+├── templates/
+│   └── index.html             # Web UI for chat interface
 ├── src/
 │   ├── agents/
 │   │   ├── __init__.py
@@ -159,12 +238,18 @@ azure-seller-assistant/
 │   │   ├── bom_agent.py        # Bill of Materials generation
 │   │   ├── pricing_agent.py    # Cost calculation via Azure Pricing MCP
 │   │   └── proposal_agent.py   # Professional proposal generation
+├── infra/
+│   ├── main.bicep             # Azure infrastructure definition
+│   ├── resources.bicep        # Resource definitions
+│   └── main.parameters.json   # Deployment parameters
 ├── specs/
-│   └── PRD.md                  # Product Requirements Definition
-├── tests/                      # Test files
-├── main.py                     # Application entry point
+│   └── PRD.md                 # Product Requirements Definition
+├── tests/                     # Test files
+├── azure.yaml                 # Azure Developer CLI configuration
+├── startup.sh                 # App Service startup script
 ├── requirements.txt
 ├── .env.example
+├── .dockerignore
 ├── .gitignore
 └── README.md
 ```
@@ -176,6 +261,11 @@ azure-seller-assistant/
 
 ## Features
 
+- ✅ **Modern Web Interface**: Interactive chat UI with real-time responses
+- ✅ **Azure Native**: Deploy to Azure App Service with one command using `azd`
+- ✅ **Infrastructure as Code**: Bicep templates for reproducible deployments
+- ✅ **Managed Identity**: Secure authentication to Azure AI Foundry
+- ✅ **Application Insights**: Built-in monitoring and observability
 - ✅ Interactive chat-based requirements gathering with adaptive questioning
 - ✅ Microsoft Learn documentation integration for up-to-date Azure recommendations
 - ✅ Automatic Bill of Materials (BOM) generation with SKU selection
@@ -184,6 +274,25 @@ azure-seller-assistant/
 - ✅ Sequential workflow orchestration (BOM → Pricing → Proposal)
 - ✅ 20-turn conversation safety limit
 - ✅ OpenTelemetry observability with Aspire Dashboard support
+
+## Azure Resources
+
+When deployed to Azure, the following resources are created:
+
+| Resource | Purpose | SKU |
+|----------|---------|-----|
+| **App Service Plan** | Hosting compute | Configurable (default: B1) |
+| **App Service** | Web application host | Python 3.11 on Linux |
+| **Application Insights** | Monitoring and telemetry | Standard |
+| **Log Analytics Workspace** | Log aggregation | Pay-as-you-go |
+
+**Estimated Monthly Cost**: Starting at ~$13/month (B1 tier) + usage-based monitoring costs
+
+### Managed Identity
+
+The App Service uses a System-Assigned Managed Identity for secure authentication to Azure AI Foundry. Ensure the managed identity has:
+- **Reader** role on the Azure AI Foundry project
+- **Cognitive Services User** role on the AI resource
 
 ## Troubleshooting
 

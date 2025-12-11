@@ -282,7 +282,8 @@ Example for a web app with database:
     microsoft_docs_search = MCPStreamableHTTPTool(
         name="Microsoft Learn",
         description="AI assistant with real-time access to official Microsoft documentation.",
-        url="https://learn.microsoft.com/api/mcp"
+        url="https://learn.microsoft.com/api/mcp",
+        chat_client=client
     )
     
     # Get MCP URL from environment variable or use default

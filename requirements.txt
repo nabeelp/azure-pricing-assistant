@@ -1,8 +1,12 @@
 # Azure Agent Framework
-agent-framework-azure-ai>=0.1.0
+agent-framework-azure-ai>=1.0.0b251204
 
 # Azure Authentication
 azure-identity>=1.15.0
+
+# Web Framework
+Flask>=3.0.0
+gunicorn>=21.2.0
 
 # Environment Configuration
 python-dotenv>=1.0.0

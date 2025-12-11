@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -19,12 +22,10 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual Environment
-venv/
-ENV/
-env/
+# Environment
+.env
+.env.local
 .venv
 
 # IDE
@@ -34,22 +35,25 @@ env/
 *.swo
 *~
 
-# Environment Variables
-.env
-.env.local
-
-# Azure
-.azure/
-
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
+# Azure
+.azure/
 *.log
+
+# Git
+.git/
+.gitignore
 
 # Tests
 tests/
 *.pytest_cache/
 .coverage
 htmlcov/
+
+# Documentation
+*.md
+!README.md
+docs/

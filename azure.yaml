@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: azure-pricing-assistant
+metadata:
+  template: azure-pricing-assistant@0.0.1-beta
+
+services:
+  web:
+    project: .
+    language: python
+    host: appservice
+    config:
+      # Gunicorn startup command for production
+      startupCommand: gunicorn --bind=0.0.0.0:8000 --workers=4 --threads=2 --timeout=120 --access-logfile=- --error-logfile=- app:app
