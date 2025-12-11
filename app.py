@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-import logging
 from flask import Flask, render_template, request, jsonify, session
 from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential
