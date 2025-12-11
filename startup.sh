@@ -18,4 +18,4 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "Starting Gunicorn server..."
-gunicorn --bind=0.0.0.0:8000 --workers=4 --threads=2 --timeout=120 --access-logfile=- --error-logfile=- app:app
+# Gunicorn startup is handled by Azure App Service via appCommandLine in infra/resources.bicep
