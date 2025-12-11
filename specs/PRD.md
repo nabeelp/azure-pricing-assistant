@@ -99,7 +99,7 @@ All agents are implemented using `ChatAgent` from the Microsoft Agent Framework:
 | Agent | Tools | Purpose |
 |-------|-------|--------|
 | Question Agent | `MCPStreamableHTTPTool` (Microsoft Learn) | Gathers requirements through adaptive Q&A |
-| BOM Agent | `MCPStreamableHTTPTool` (Microsoft Learn) | Maps requirements to Azure services/SKUs |
+| BOM Agent | `MCPStreamableHTTPTool` (Microsoft Learn + Azure Pricing MCP) | Maps requirements to Azure services/SKUs |
 | Pricing Agent | `MCPStreamableHTTPTool` (Azure Pricing MCP via SSE) | Calculates costs using MCP pricing tools |
 | Proposal Agent | None | Generates professional Markdown proposal |
 
