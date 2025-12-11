@@ -52,15 +52,11 @@ PROCESS:
    - Extract the monthly_cost from the on_demand_pricing section
    - Multiply by quantity if quantity > 1
 3. Sum all monthly costs to get the total
-4. Optionally use azure_region_recommend to suggest cost-saving alternatives
 
 TOOL USAGE EXAMPLES:
 For a BOM item with serviceName="Virtual Machines", sku="Standard_D2s_v3", armRegionName="eastus":
 - Call azure_cost_estimate with service_name="Virtual Machines", sku_name="Standard_D2s_v3", region="eastus"
 - The response includes on_demand_pricing.monthly_cost
-
-For finding cheaper alternatives:
-- Call azure_region_recommend with service_name="Virtual Machines", sku_name="Standard_D2s_v3"
 
 ERROR HANDLING:
 - If a tool returns an error or no results, include the item with $0.00 cost and add a note explaining the issue
@@ -94,10 +90,7 @@ Format your response exactly like this:
     }
   ],
   "total_monthly": 257.28,
-  "currency": "USD",
-  "cost_optimization_suggestions": [
-    "Consider deploying in 'westus2' region for 15% savings"
-  ]
+   "currency": "USD"
 }
 
 CALCULATION EXAMPLE:
