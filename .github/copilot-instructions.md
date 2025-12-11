@@ -25,7 +25,7 @@ When implementing or modifying agent code:
 
 ### 3. Agent Tools
 - **Question Agent & BOM Agent**: Use `MCPStreamableHTTPTool` for Microsoft Learn documentation access.
-- **Pricing Agent**: Uses `AIFunction` wrapping `get_azure_price()` for Azure Retail Prices API.
+- **Pricing Agent**: Uses `MCPStreamableHTTPTool` for Azure Pricing MCP server (SSE at `http://localhost:8080/sse`).
 - **Proposal Agent**: No tools (pure text synthesis).
 
 ### 4. Data Schemas
@@ -34,7 +34,8 @@ When implementing or modifying agent code:
 - **Proposal**: Must follow the markdown structure defined in the PRD (Section 4.4).
 
 ### 5. API Integration
-- Use Azure Retail Prices API endpoint: `https://prices.azure.com/api/retail/prices`
+- Use Azure Pricing MCP server at `http://localhost:8080/sse` (SSE transport).
+- Available MCP tools: `azure_cost_estimate`, `azure_price_search`, `azure_price_compare`, `azure_region_recommend`, `azure_discover_skus`, `azure_sku_discovery`, `get_customer_discount`.
 - Follow the API usage guidelines in `specs/PRD.md`.
 - Handle errors gracefully (return 0.0 for missing pricing data).
 
@@ -47,14 +48,14 @@ src/
 │   ├── pricing_agent.py
 │   └── proposal_agent.py
 └── utils/
-    └── pricing_api.py
+    └── __init__.py
 ```
 
 ### 7. Testing Requirements
 - All agent changes must be tested end-to-end.
 - Verify "We are DONE!" termination for Question Agent.
 - Validate JSON schema compliance for BOM output.
-- Test pricing API integration with real calls.
+- Test pricing MCP integration with running MCP server at `http://localhost:8080/sse`.
 - Review proposal output quality against PRD standards.
 
 ## Common Tasks

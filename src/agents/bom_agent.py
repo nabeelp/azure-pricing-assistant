@@ -2,9 +2,13 @@
 
 import json
 import logging
+import os
 from typing import List, Dict, Any
 from agent_framework import ChatAgent, MCPStreamableHTTPTool
 from agent_framework_azure_ai import AzureAIAgentClient
+
+# Default MCP URL if not set in environment
+DEFAULT_PRICING_MCP_URL = "http://localhost:8080/sse"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -147,7 +151,8 @@ def create_bom_agent(client: AzureAIAgentClient) -> ChatAgent:
     """
     Create BOM Agent with Phase 2 enhanced instructions.
     
-    Uses intelligent prompting and Microsoft Learn MCP tool for service/SKU lookup.
+    Uses intelligent prompting, Microsoft Learn MCP tool for service/SKU lookup,
+    and Azure Pricing MCP's azure_sku_discovery tool for intelligent SKU matching.
     Returns structured JSON array matching BOM schema.
     """
     instructions = """You are an Azure solutions architect specializing in infrastructure design and Bill of Materials (BOM) creation.
@@ -155,13 +160,29 @@ def create_bom_agent(client: AzureAIAgentClient) -> ChatAgent:
 Your task is to analyze the customer requirements provided in the conversation history and create a detailed Bill of Materials (BOM) as a JSON array.
 
 TOOLS AVAILABLE:
-You have access to the microsoft_docs_search tool to query official Microsoft/Azure documentation. Use this tool to:
-- Verify the exact service names and SKU identifiers for Azure services
-- Get latest SKU options and tier recommendations for specific workloads
-- Understand current Azure service capabilities and configurations
-- Confirm region availability for specific services and SKUs
 
-Example: If requirements mention "Python web app", search for "Azure App Service Python" to verify the appropriate service tier and SKU options.
+1. microsoft_docs_search - Query official Microsoft/Azure documentation
+   Use this tool to:
+   - Verify the exact service names and capabilities for Azure services
+   - Understand current Azure service capabilities and configurations
+   - Confirm region availability for specific services
+   Example: If requirements mention "Python web app", search for "Azure App Service Python"
+
+2. azure_sku_discovery - Intelligent SKU discovery with fuzzy matching
+   Use this tool to:
+   - Find matching Azure services and SKUs based on natural language descriptions
+   - Discover available SKUs for workload types (e.g., "web app", "database", "machine learning")
+   - Get recommendations on appropriate service tiers based on scale requirements
+   - Verify SKU availability in the target region
+   Example: Call with service_hint="Python web app small scale" to get matching services and SKUs
+   The tool returns a list of services with their available SKUs, allowing you to select the best match for the workload
+
+DISCOVERY WORKFLOW:
+For each requirement, follow this process:
+1. Identify the workload type from customer requirements (e.g., "web app", "SQL database", "file storage")
+2. Use azure_sku_discovery with a natural language hint describing the workload and scale
+3. Review the returned services and SKUs to select the best match
+4. Use microsoft_docs_search if you need to validate service names or understand advanced features
 
 REQUIREMENTS TO BOM MAPPING:
 - Web applications → Azure App Service (Basic, Standard, or Premium tiers based on scale) OR Virtual Machines
@@ -175,10 +196,10 @@ REQUIREMENTS TO BOM MAPPING:
 - Containers → Azure Kubernetes Service or Azure Container Instances
 
 SKU SELECTION GUIDANCE:
-- Small scale (< 1000 users): Basic or B-series
-- Medium scale (1000-10000 users): Standard or D-series
-- Large scale (> 10000 users): Premium or E-series
-- Always consider the workload type when selecting SKUs
+- Small scale (< 1000 users): Basic, B-series, or Free tier options
+- Medium scale (1000-10000 users): Standard, D-series, or S-tier options
+- Large scale (> 10000 users): Premium, E-series, or P-tier options
+- Always use azure_sku_discovery to find the actual available SKU options for your workload
 - Use microsoft_docs_search to verify current SKU availability and get latest tier recommendations
 
 JSON SCHEMA (you MUST follow this exactly):
@@ -264,9 +285,18 @@ Example for a web app with database:
         url="https://learn.microsoft.com/api/mcp"
     )
     
+    # Get MCP URL from environment variable or use default
+    mcp_url = os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
+
+    azure_pricing_mcp = MCPStreamableHTTPTool(
+        name="Azure Pricing",
+        description="Azure Pricing MCP server providing real-time pricing data, cost estimates, region recommendations, and SKU discovery for Azure services.",
+        url=mcp_url
+    )
+    
     agent = ChatAgent(
         chat_client=client,
-        tools=[microsoft_docs_search],
+        tools=[microsoft_docs_search, azure_pricing_mcp],
         instructions=instructions,
         name="bom_agent"
     )

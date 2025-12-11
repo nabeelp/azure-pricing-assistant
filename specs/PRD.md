@@ -43,11 +43,19 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **Role**: Cost Analyst.
 -   **Input**: BOM JSON array.
 -   **Capabilities**:
-    -   Query Azure Retail Prices API via `get_azure_price` tool (AIFunction).
-    -   Filter by Service Name, SKU, and Region.
-    -   Handle API failures gracefully (fallback to $0.00 with note).
-    -   Calculate monthly cost (`hourly_rate * quantity * hours_per_month`).
--   **Output**: JSON object with itemized costs and total monthly estimate.
+    -   Query Azure Pricing MCP server via `MCPStreamableHTTPTool` (SSE endpoint configured via `AZURE_PRICING_MCP_URL` environment variable, defaults to `http://localhost:8080/sse`).
+    -   Available MCP tools:
+        -   `azure_cost_estimate`: Primary tool for calculating costs (service_name, sku_name, region, hours_per_month).
+        -   `azure_price_search`: Search retail prices with filtering.
+        -   `azure_price_compare`: Compare prices across regions or SKUs.
+        -   `azure_region_recommend`: Find cheapest regions for a service/SKU.
+        -   `azure_discover_skus`: List available SKUs for a service.
+        -   `azure_sku_discovery`: Intelligent SKU discovery with fuzzy matching.
+        -   `get_customer_discount`: Get customer discount information.
+    -   Handle tool failures gracefully (fallback to $0.00 with note).
+    -   Calculate total monthly cost by summing item costs (monthly_cost * quantity).
+    -   Optionally suggest cost optimization alternatives using `azure_region_recommend`.
+-   **Output**: JSON object with itemized costs, total monthly estimate, savings options, and cost optimization suggestions.
 
 ### 4.4. Proposal Agent (Documentation)
 -   **Role**: Sales Consultant.
@@ -69,7 +77,9 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **Framework**: Microsoft Agent Framework (`agent-framework`, `agent-framework-azure-ai`).
 -   **AI Service**: Azure AI Foundry Agent Service.
 -   **Language**: Python 3.10+.
--   **External APIs**: Azure Retail Prices API (`https://prices.azure.com/api/retail/prices`).
+-   **External APIs**: 
+    -   Azure Pricing MCP Server (`http://localhost:8080/sse`) - SSE-based MCP server for pricing data.
+    -   Microsoft Learn MCP (`https://learn.microsoft.com/api/mcp`) - Documentation search.
 -   **Observability**: OpenTelemetry with Aspire Dashboard integration.
 
 ### 5.2. Orchestration
@@ -89,8 +99,8 @@ All agents are implemented using `ChatAgent` from the Microsoft Agent Framework:
 | Agent | Tools | Purpose |
 |-------|-------|--------|
 | Question Agent | `MCPStreamableHTTPTool` (Microsoft Learn) | Gathers requirements through adaptive Q&A |
-| BOM Agent | `MCPStreamableHTTPTool` (Microsoft Learn) | Maps requirements to Azure services/SKUs |
-| Pricing Agent | `AIFunction` (get_azure_price) | Calculates costs using Azure Retail Prices API |
+| BOM Agent | `MCPStreamableHTTPTool` (Microsoft Learn + Azure Pricing MCP) | Maps requirements to Azure services/SKUs |
+| Pricing Agent | `MCPStreamableHTTPTool` (Azure Pricing MCP via SSE) | Calculates costs using MCP pricing tools |
 | Proposal Agent | None | Generates professional Markdown proposal |
 
 ### 5.5. Client Management

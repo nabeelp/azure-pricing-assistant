@@ -15,7 +15,7 @@ The solution uses a two-stage orchestration pattern:
 |-------|-------|--------|
 | **Question Agent** | Microsoft Learn MCP | Gathers requirements through adaptive Q&A (max 20 turns) |
 | **BOM Agent** | Microsoft Learn MCP | Maps requirements to Azure services and SKUs |
-| **Pricing Agent** | Azure Retail Prices API | Calculates real-time costs for each BOM item |
+| **Pricing Agent** | Azure Pricing MCP | Calculates real-time costs for each BOM item |
 | **Proposal Agent** | None | Generates professional Markdown proposal |
 
 ## Prerequisites
@@ -51,6 +51,7 @@ The solution uses a two-stage orchestration pattern:
    Edit `.env` and set:
    - `AZURE_AI_PROJECT_ENDPOINT`: Your Azure AI Foundry project endpoint
    - `AZURE_AI_MODEL_DEPLOYMENT_NAME`: Your deployed model name (default: gpt-4o-mini)
+   - `AZURE_PRICING_MCP_URL`: Azure Pricing MCP server URL (default: http://localhost:8080/sse)
 
 5. **Authenticate with Azure**
    ```bash
@@ -156,11 +157,8 @@ azure-seller-assistant/
 │   │   ├── __init__.py
 │   │   ├── question_agent.py   # Interactive requirements gathering
 │   │   ├── bom_agent.py        # Bill of Materials generation
-│   │   ├── pricing_agent.py    # Cost calculation with Azure API
+│   │   ├── pricing_agent.py    # Cost calculation via Azure Pricing MCP
 │   │   └── proposal_agent.py   # Professional proposal generation
-│   └── utils/
-│       ├── __init__.py
-│       └── pricing_api.py      # Azure Retail Prices API client
 ├── specs/
 │   └── PRD.md                  # Product Requirements Definition
 ├── tests/                      # Test files
@@ -205,9 +203,9 @@ azure-seller-assistant/
 - The application includes a custom exception handler to suppress these
 
 **Pricing returns $0.00**
-- The Azure Retail Prices API may not have pricing data for all SKU/region combinations
+- The Azure Pricing MCP server may not have pricing data for all SKU/region combinations
 - Verify the service name and SKU match Azure's naming conventions
-- Check the API filter parameters in `src/utils/pricing_api.py`
+- Ensure the Azure Pricing MCP server is running at `http://localhost:8080/sse`
 
 ## Contributing
 

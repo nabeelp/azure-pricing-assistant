@@ -1,34 +1,66 @@
-"""Pricing Agent - Phase 2 Implementation with pricing tool."""
+"""Pricing Agent - Uses Azure Pricing MCP via SSE for real-time pricing data."""
 
-from agent_framework import ChatAgent, AIFunction
+import os
+from agent_framework import ChatAgent, MCPStreamableHTTPTool
 from agent_framework_azure_ai import AzureAIAgentClient
-from src.utils.pricing_api import get_azure_price
+
+# Default MCP URL if not set in environment
+DEFAULT_PRICING_MCP_URL = "http://localhost:8080/sse"
 
 
 def create_pricing_agent(client: AzureAIAgentClient) -> ChatAgent:
-    """Create Pricing Agent with Phase 2 instructions and registered pricing tool."""
-    instructions = """You are an Azure cost analyst specializing in pricing estimation using real-time Azure Retail Prices data.
+    """Create Pricing Agent with Azure Pricing MCP tool via SSE."""
+    instructions = """You are an Azure cost analyst specializing in pricing estimation using real-time Azure Retail Prices data via the Azure Pricing MCP server.
 
-Your task is to calculate accurate costs for each item in the Bill of Materials (BOM) using the get_azure_price tool.
+Your task is to calculate accurate costs for each item in the Bill of Materials (BOM) using the Azure Pricing tools.
+
+AVAILABLE TOOLS:
+You have access to the Azure Pricing MCP server with the following tools:
+
+1. azure_cost_estimate - Estimate costs based on usage patterns (PRIMARY TOOL)
+   Parameters: service_name, sku_name, region, hours_per_month (default 730), currency_code (default USD)
+   Returns: Detailed pricing with hourly_rate, daily_cost, monthly_cost, yearly_cost, and savings plan options
+
+2. azure_price_search - Search Azure retail prices with filtering
+   Parameters: service_name, sku_name, region, currency_code, price_type
+   Returns: List of matching price records
+
+3. azure_price_compare - Compare prices across regions or SKUs
+   Parameters: service_name (required), sku_name, regions (list), currency_code
+   Returns: Price comparison data across specified regions
+
+4. azure_region_recommend - Find cheapest regions for a service/SKU
+   Parameters: service_name (required), sku_name (required), currency_code
+   Returns: Ranked list of regions with prices and savings percentages
+
+5. azure_discover_skus - List available SKUs for a service
+   Parameters: service_name (required), region, currency_code
+   Returns: List of available SKUs with pricing
+
+6. azure_sku_discovery - Intelligent SKU discovery with fuzzy matching
+   Parameters: service_hint (required)
+   Returns: Matched services and their SKUs
+
+7. get_customer_discount - Get customer discount information
+   Parameters: customer_id (optional)
+   Returns: Applicable discount percentage
 
 PROCESS:
 1. Parse the BOM JSON from the previous agent's response
 2. For each item in the BOM:
-   - Call the get_azure_price tool with: serviceName, skuName (from sku field), and armRegionName
-   - The tool returns the hourly retail price in USD
-   - Calculate monthly cost: price_per_hour × quantity × hours_per_month
+   - Use azure_cost_estimate with: service_name (from serviceName), sku_name (from sku), region (from armRegionName)
+   - Extract the monthly_cost from the on_demand_pricing section
+   - Multiply by quantity if quantity > 1
 3. Sum all monthly costs to get the total
 
-TOOL USAGE:
-Use the get_azure_price function with these exact parameters:
-- service_name: Use the "serviceName" from BOM
-- sku_name: Use the "sku" from BOM  
-- region: Use the "armRegionName" from BOM
-
-The tool returns a float representing the hourly price, or 0.0 if pricing data is not found.
+TOOL USAGE EXAMPLES:
+For a BOM item with serviceName="Virtual Machines", sku="Standard_D2s_v3", armRegionName="eastus":
+- Call azure_cost_estimate with service_name="Virtual Machines", sku_name="Standard_D2s_v3", region="eastus"
+- The response includes on_demand_pricing.monthly_cost
 
 ERROR HANDLING:
-- If get_azure_price returns 0.0, include the item with $0.00 cost and add a note
+- If a tool returns an error or no results, include the item with $0.00 cost and add a note explaining the issue
+- Try azure_sku_discovery if exact SKU matching fails
 - Continue processing remaining items even if one fails
 
 OUTPUT FORMAT:
@@ -50,7 +82,11 @@ Format your response exactly like this:
       "quantity": 2,
       "hourly_price": 0.176,
       "monthly_cost": 257.28,
-      "note": ""
+      "note": "",
+      "savings_options": {
+        "1_year_savings_plan": 180.10,
+        "3_year_savings_plan": 128.64
+      }
     }
   ],
   "total_monthly": 257.28,
@@ -64,19 +100,22 @@ If BOM has:
 - quantity: 2
 - hours_per_month: 730
 
-And get_azure_price returns 0.176 (per hour):
-monthly_cost = 0.176 × 2 × 730 = $257.28"""
+And azure_cost_estimate returns on_demand_pricing.monthly_cost = 128.64:
+total_monthly_cost = 128.64 × 2 = $257.28"""
 
-    pricing_tool = AIFunction(
-        name="get_azure_price",
-        description="Get Azure retail hourly price for a specific service SKU in a region.",
-        func=get_azure_price,
+    # Get MCP URL from environment variable or use default
+    mcp_url = os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
+
+    azure_pricing_mcp = MCPStreamableHTTPTool(
+        name="Azure Pricing",
+        description="Azure Pricing MCP server providing real-time pricing data, cost estimates, region recommendations, and SKU discovery for Azure services.",
+        url=mcp_url
     )
 
     agent = ChatAgent(
         chat_client=client,
         instructions=instructions,
         name="pricing_agent",
-        tools=[pricing_tool],
+        tools=[azure_pricing_mcp],
     )
     return agent

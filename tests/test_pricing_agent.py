@@ -1,42 +1,47 @@
+"""Tests for Pricing Agent with Azure Pricing MCP integration."""
+
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from src.agents.pricing_agent import create_pricing_agent
 
-class TestPricingAgent(unittest.TestCase):
 
-    @patch('src.agents.pricing_agent.requests.get')
-    def test_fetch_pricing_data_success(self, mock_get):
-        # Mock the API response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            'items': [
-                {'serviceName': 'Virtual Machines', 'sku': 'Standard_D2s_v3', 'unitPrice': 100.00},
-                {'serviceName': 'SQL Database', 'sku': 'Standard_S0', 'unitPrice': 50.00}
-            ]
-        }
-        mock_response.status_code = 200
-        mock_get.return_value = mock_response
+class TestPricingAgentCreation(unittest.TestCase):
+    """Test pricing agent creation and configuration."""
 
-        # Create the pricing agent
-        agent = create_pricing_agent(MagicMock())
-        result = agent
+    def test_create_pricing_agent_returns_chat_agent(self):
+        """Test that create_pricing_agent returns a ChatAgent instance."""
+        mock_client = MagicMock()
+        agent = create_pricing_agent(mock_client)
+        
+        # Verify agent was created with correct name
+        self.assertEqual(agent.name, "pricing_agent")
+    
+    def test_create_pricing_agent_with_valid_client(self):
+        """Test that pricing agent can be created with a mock client."""
+        mock_client = MagicMock()
+        agent = create_pricing_agent(mock_client)
+        
+        # Verify agent is not None
+        self.assertIsNotNone(agent)
+        
+    def test_pricing_agent_name(self):
+        """Test that the pricing agent has the correct name."""
+        mock_client = MagicMock()
+        agent = create_pricing_agent(mock_client)
+        
+        self.assertEqual(agent.name, "pricing_agent")
 
-        # Check the result
-        self.assertEqual(len(result['items']), 2)
-        self.assertEqual(result['total_monthly'], 150.00)
 
-    @patch('src.agents.pricing_agent.requests.get')
-    def test_fetch_pricing_data_failure(self, mock_get):
-        # Mock a failed API response
-        mock_get.side_effect = Exception('API request failed')
+class TestPricingAgentIntegration(unittest.TestCase):
+    """Integration tests for pricing agent (require running MCP server)."""
+    
+    @unittest.skip("Integration test - requires running MCP server at localhost:8080")
+    def test_pricing_agent_can_connect_to_mcp(self):
+        """Test that the agent can connect to the Azure Pricing MCP server."""
+        # This test would require a running MCP server
+        # Implement when doing integration testing
+        pass
 
-        # Create the pricing agent
-        agent = create_pricing_agent(MagicMock())
-        result = agent
-
-        # Check the error message
-        self.assertIn('error', result)
-        self.assertEqual(result['message'], 'Failed to fetch pricing data.')
 
 if __name__ == '__main__':
     unittest.main()
