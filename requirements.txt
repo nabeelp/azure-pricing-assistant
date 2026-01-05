@@ -1,13 +1,9 @@
-# Azure Agent Framework
-agent-framework-azure-ai>=1.0.0b251204
-
-# Azure Authentication
-azure-identity>=1.15.0
-
-# Web Framework
-Flask>=3.0.0
-gunicorn>=21.2.0
-
-# Environment Configuration
-python-dotenv>=1.0.0
-requests>=2.31.0
+# Install this package with optional dependencies:
+#   pip install -e .              # Core dependencies only
+#   pip install -e .[web]         # For web interface
+#   pip install -e .[cli]         # For CLI interface
+#   pip install -e .[dev]         # For development
+#   pip install -e .[all]         # All dependencies
+#
+# For production/Azure deployment (web interface):
+-e .[web]

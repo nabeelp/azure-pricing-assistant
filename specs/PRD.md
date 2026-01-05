@@ -43,7 +43,7 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **Role**: Cost Analyst.
 -   **Input**: BOM JSON array.
 -   **Capabilities**:
-    -   Query Azure Pricing MCP server via `MCPStreamableHTTPTool` (SSE endpoint configured via `AZURE_PRICING_MCP_URL` environment variable, defaults to `http://localhost:8080/sse`).
+    -   Query Azure Pricing MCP server via `MCPStreamableHTTPTool` (endpoint configured via `AZURE_PRICING_MCP_URL` environment variable, defaults to `http://localhost:8080/mcp`).
     -   Available MCP tools:
         -   `azure_cost_estimate`: Primary tool for calculating costs (service_name, sku_name, region, hours_per_month).
         -   `azure_price_search`: Search retail prices with filtering.
@@ -78,7 +78,7 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **AI Service**: Azure AI Foundry Agent Service.
 -   **Language**: Python 3.10+.
 -   **External APIs**: 
-    -   Azure Pricing MCP Server (`http://localhost:8080/sse`) - SSE-based MCP server for pricing data.
+    -   Azure Pricing MCP Server (`http://localhost:8080/mcp`) - MCP server for pricing data.
     -   Microsoft Learn MCP (`https://learn.microsoft.com/api/mcp`) - Documentation search.
 -   **Observability**: OpenTelemetry with Aspire Dashboard integration.
 
@@ -121,3 +121,14 @@ async with DefaultAzureCredential() as credential:
 -   **Performance**: End-to-end processing (after chat) should complete within reasonable time (approx. 30-60s).
 -   **Security**: No customer credentials required; uses public pricing API. Azure CLI credentials used for Agent Service authentication.
 -   **Observability**: OpenTelemetry tracing enabled for monitoring and debugging.
+
+# 7. Planned Enhancements
+-   **Tune Questioning Strategy**: Improve adaptive questioning based on workload type and experience level.
+-   **Observability Enhancements**: Add more detailed tracing and logging for each step, with log level control.
+-   **Progress Feedback**: Provide real-time progress updates during processing stage.
+-   **Improve Performance**: Optimize agent response times and MCP tool calls.
+-   **Progressive Disclosure**: Allow users to see intermediate outputs (BOM, pricing) before final proposal generation. Use async updates to improve responsiveness.
+-   **Web Interface**: Allow for retrieval of previous proposals.
+-   **Price Citations**: Include links to Azure pricing pages in the proposal for transparency.
+-   **Testing**: Implement complete unit and integration tests for each agent and workflow stage.
+-   **AI Evaluation**: Set up evaluation framework to assess agent outputs for quality and accuracy.

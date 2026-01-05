@@ -8,42 +8,9 @@ AI-powered Azure pricing solution using Microsoft Agent Framework with multi-age
 
 ## 🚀 Quick Start
 
-**Deploy to Azure in 5 minutes**: See **[QUICKSTART.md](QUICKSTART.md)** for rapid deployment instructions.
+### Azure Deployment (5 Minutes)
 
-**Full deployment guide**: See **[DEPLOYMENT.md](DEPLOYMENT.md)** for comprehensive step-by-step instructions.
-
-## Architecture
-
-The solution uses a two-stage orchestration pattern:
-
-1. **Discovery Stage**: Interactive chat with the Question Agent to gather requirements
-2. **Processing Stage**: Sequential workflow executing BOM → Pricing → Proposal agents
-
-### Agents
-
-| Agent | Tools | Purpose |
-|-------|-------|--------|
-| **Question Agent** | Microsoft Learn MCP | Gathers requirements through adaptive Q&A (max 20 turns) |
-| **BOM Agent** | Microsoft Learn MCP | Maps requirements to Azure services and SKUs |
-| **Pricing Agent** | Azure Pricing MCP | Calculates real-time costs for each BOM item |
-| **Proposal Agent** | None | Generates professional Markdown proposal |
-
-## Prerequisites
-
-### For Local Development
-- Python 3.10 or higher
-- Azure CLI installed and authenticated (`az login`)
-- Azure AI Foundry project with deployed model (e.g., gpt-4o-mini)
-
-### For Azure Deployment
-- [Azure Developer CLI (azd)](https://aka.ms/install-azd) installed
-- [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) installed
-- Azure subscription with appropriate permissions
-- Azure AI Foundry project endpoint configured
-
-## Quick Start (Azure Deployment)
-
-Deploy the application to Azure in minutes:
+Deploy the application to Azure:
 
 ```bash
 # 1. Login to Azure
@@ -87,6 +54,65 @@ azd env get-values
 azd down
 ```
 
+## Architecture
+
+The solution uses a two-stage orchestration pattern:
+
+1. **Discovery Stage**: Interactive chat with the Question Agent to gather requirements
+2. **Processing Stage**: Sequential workflow executing BOM → Pricing → Proposal agents
+
+### Agents
+
+| Agent | Tools | Purpose |
+|-------|-------|--------|
+| **Question Agent** | Microsoft Learn MCP | Gathers requirements through adaptive Q&A (max 20 turns) |
+| **BOM Agent** | Microsoft Learn MCP + Azure Pricing MCP | Maps requirements to Azure services and SKUs |
+| **Pricing Agent** | Azure Pricing MCP | Calculates real-time costs for each BOM item |
+| **Proposal Agent** | None | Generates professional Markdown proposal |
+
+## Optional Dependencies
+
+This project uses pip extras for optional dependencies:
+
+| Extra | Description | Use Case |
+|-------|-------------|----------|
+| `[web]` | Flask + Gunicorn | Web interface (production and local) |
+| `[cli]` | No additional deps | Command-line interface |
+| `[dev]` | Testing & linting tools | Development and testing |
+| `[all]` | All of the above | Full installation |
+
+**Installation examples:**
+```bash
+pip install -e .          # Core dependencies only
+pip install -e .[web]     # Web interface
+pip install -e .[cli]     # CLI interface  
+pip install -e .[dev]     # Development
+pip install -e .[all]     # Everything
+```
+
+## Prerequisites
+
+### For Local Development
+- Python 3.10 or higher
+- Azure CLI installed and authenticated (`az login`)
+- Azure AI Foundry project endpoint
+- Azure Pricing MCP Server running locally (SSE endpoint, see [Azure Pricing MCP](https://github.com/azure/azure-pricing-mcp))
+
+### For Azure Deployment
+- [Azure Developer CLI (azd)](https://aka.ms/install-azd) installed
+- [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) installed
+- Azure subscription with appropriate permissions
+- Azure AI Foundry project endpoint configured
+
+## Environment Variables
+
+| Name | Required | Default | Notes |
+|------|----------|---------|-------|
+| AZURE_AI_PROJECT_ENDPOINT | Yes | — | Azure AI Foundry project endpoint used by AzureAIAgentClient |
+| AZURE_PRICING_MCP_URL | No | http://localhost:8080/mcp | Endpoint for Azure Pricing MCP (used by BOM and Pricing agents) |
+| FLASK_SECRET_KEY | Yes for web | — | Secret key for Flask sessions |
+| PORT | No | 8000 | Port for local web server |
+
 ## Local Development Setup
 
 1. **Clone repository**
@@ -102,8 +128,20 @@ azd down
    ```
 
 3. **Install dependencies**
+   
+   Choose the installation based on your needs:
    ```bash
-   pip install -r requirements.txt
+   # For web interface (recommended)
+   pip install -e .[web]
+   
+   # For CLI interface only
+   pip install -e .[cli]
+   
+   # For development (includes all dependencies + dev tools)
+   pip install -e .[dev]
+   
+   # Or install all optional dependencies
+   pip install -e .[all]
    ```
 
 4. **Configure environment**
@@ -112,16 +150,21 @@ azd down
    ```
    
    Edit `.env` and set:
-   - `AZURE_AI_PROJECT_ENDPOINT`: Your Azure AI Foundry project endpoint
-   - `AZURE_AI_MODEL_DEPLOYMENT_NAME`: Your deployed model name (default: gpt-4o-mini)
-   - `AZURE_PRICING_MCP_URL`: Azure Pricing MCP server URL (default: http://localhost:8080/sse)
+   - `AZURE_AI_PROJECT_ENDPOINT`: Azure AI Foundry project endpoint (required)
+   - `AZURE_PRICING_MCP_URL`: Azure Pricing MCP endpoint (default: http://localhost:8080/mcp)
+   - `FLASK_SECRET_KEY`: Secret key for Flask sessions (required for web interface)
+   - `PORT`: Optional port override for the local web server (default: 8000)
 
 5. **Authenticate with Azure**
    ```bash
    az login
    ```
 
-6. **Optional - Start Aspire Dashboard for Observability**
+6. **Start Azure Pricing MCP Server**
+   
+   Follow the instructions in the [Azure Pricing MCP repository](https://github.com/azure/azure-pricing-mcp) to start the MCP server locally. The agents expect the endpoint at `http://localhost:8080/mcp` (configure via `AZURE_PRICING_MCP_URL`).
+
+7. **Optional - Start Aspire Dashboard for Observability**
    ```bash
    docker run --rm -it -p 18888:18888 -p 4317:18889 --name aspire-dashboard mcr.microsoft.com/dotnet/aspire-dashboard:latest
    ```
@@ -134,7 +177,7 @@ azd down
 Start the Flask web server:
 
 ```bash
-python app.py
+python -m src.web.app
 ```
 
 Open your browser to http://localhost:8000 to access the interactive web interface.
@@ -144,7 +187,7 @@ Open your browser to http://localhost:8000 to access the interactive web interfa
 Run the command-line version:
 
 ```bash
-python main.py
+python -m src.cli.app
 ```
 
 The application will:
@@ -226,33 +269,80 @@ Database deployed in the East US region...
 ## Project Structure
 
 ```
-azure-pricing-assistant/
-├── app.py                      # Flask web application entry point
-├── main.py                     # CLI entry point (legacy)
-├── templates/
-│   └── index.html             # Web UI for chat interface
-├── src/
-│   ├── agents/
-│   │   ├── __init__.py
-│   │   ├── question_agent.py   # Interactive requirements gathering
-│   │   ├── bom_agent.py        # Bill of Materials generation
-│   │   ├── pricing_agent.py    # Cost calculation via Azure Pricing MCP
-│   │   └── proposal_agent.py   # Professional proposal generation
-├── infra/
-│   ├── main.bicep             # Azure infrastructure definition
-│   ├── resources.bicep        # Resource definitions
-│   └── main.parameters.json   # Deployment parameters
-├── specs/
-│   └── PRD.md                 # Product Requirements Definition
-├── tests/                     # Test files
-├── azure.yaml                 # Azure Developer CLI configuration
-├── startup.sh                 # App Service startup script
+azure-seller-assistant/
+├── azure.yaml
+├── pyproject.toml
 ├── requirements.txt
-├── .env.example
-├── .dockerignore
-├── .gitignore
-└── README.md
+├── README.md
+├── specs/
+│   └── PRD.md                     # Product Requirements Definition
+├── infra/
+│   ├── main.bicep                 # Azure infrastructure definition
+│   ├── resources.bicep            # Resource definitions
+│   └── main.parameters.json       # Deployment parameters
+├── src/
+│   ├── agents/                    # AI agents
+│   │   ├── bom_agent.py           # Bill of Materials generation
+│   │   ├── pricing_agent.py       # Cost calculation via Azure Pricing MCP
+│   │   ├── proposal_agent.py      # Professional proposal generation
+│   │   └── question_agent.py      # Interactive requirements gathering
+│   ├── cli/                       # Command-line interface
+│   │   ├── app.py                 # CLI entry point
+│   │   ├── interface.py           # CLI implementation
+│   │   └── prompts.py             # CLI formatting utilities
+│   ├── core/                      # Shared orchestration and configuration
+│   │   ├── config.py              # Environment and app configuration
+│   │   ├── models.py              # Shared data models
+│   │   ├── orchestrator.py        # Workflow orchestration logic
+│   │   └── session.py             # Session storage abstraction
+│   ├── interfaces/                # Interface abstraction layer
+│   │   ├── base.py                # Abstract PricingInterface base class
+│   │   ├── context.py             # Execution context management
+│   │   └── handlers.py            # Shared workflow handlers
+│   ├── shared/                    # Shared utilities
+│   │   ├── errors.py              # Custom exception hierarchy
+│   │   └── logging.py             # Unified logging setup
+│   └── web/                       # Web interface
+│       ├── app.py                 # Flask application setup and routes
+│       ├── handlers.py            # HTTP endpoint handlers
+│       ├── interface.py           # WebInterface implementation
+│       ├── models.py              # Request/response models
+│       └── templates/
+│           └── index.html         # Web UI for chat interface
+├── tests/
+│   ├── test_bom_agent.py
+│   ├── test_bom_integration.py
+│   └── test_pricing_agent.py
+└── .env.example
 ```
+
+### Key Architectural Improvements
+
+This codebase uses a **layered architecture** with clear separation of concerns:
+
+1. **Core Layer** (`src/core/`) - Orchestration, configuration, session management
+   - Completely interface-agnostic
+   - Reusable by any interface implementation
+
+2. **Agent Layer** (`src/agents/`) - AI agent implementations
+   - No dependencies on Flask or CLI
+   - Pure business logic
+
+3. **Interface Abstraction** (`src/interfaces/`) - Shared contracts and logic
+   - `PricingInterface` - Abstract base for all interfaces
+   - `InterfaceContext` - Resource management (Azure AI client, sessions)
+   - `WorkflowHandler` - Shared business logic used by all interfaces
+
+4. **Interface Implementations**
+   - `src/cli/` - Command-line interface
+   - `src/web/` - Flask web application
+   - Both extend `PricingInterface` and use `WorkflowHandler`
+
+5. **Shared Utilities** (`src/shared/`) - Common helpers
+   - Exception definitions
+   - Logging configuration
+
+This design **eliminates code duplication** between CLI and Web interfaces while making it easy to add new interfaces (REST API, Slack bot, etc.).
 
 ## Documentation
 
@@ -314,7 +404,7 @@ The App Service uses a System-Assigned Managed Identity for secure authenticatio
 **Pricing returns $0.00**
 - The Azure Pricing MCP server may not have pricing data for all SKU/region combinations
 - Verify the service name and SKU match Azure's naming conventions
-- Ensure the Azure Pricing MCP server is running at `http://localhost:8080/sse`
+- Ensure the Azure Pricing MCP server is running at `http://localhost:8080/mcp`
 
 ## Contributing
 
@@ -322,4 +412,4 @@ See `.github/copilot-instructions.md` for development guidelines and agent imple
 
 ## License
 
-[Your License]
+This project is licensed under the [MIT License](LICENSE).

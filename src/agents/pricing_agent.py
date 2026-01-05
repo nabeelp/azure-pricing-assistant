@@ -5,7 +5,7 @@ from agent_framework import ChatAgent, MCPStreamableHTTPTool
 from agent_framework_azure_ai import AzureAIAgentClient
 
 # Default MCP URL if not set in environment
-DEFAULT_PRICING_MCP_URL = "http://localhost:8080/sse"
+DEFAULT_PRICING_MCP_URL = "http://localhost:8080/mcp"
 
 
 def create_pricing_agent(client: AzureAIAgentClient) -> ChatAgent:
