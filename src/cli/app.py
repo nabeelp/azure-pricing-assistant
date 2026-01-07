@@ -39,6 +39,7 @@ async def run_cli_workflow() -> None:
 
     max_turns = 20
     requirements_summary = ""
+    is_done = False
 
     # Interactive chat loop
     for turn_num in range(1, max_turns + 1):
@@ -55,12 +56,22 @@ async def run_cli_workflow() -> None:
         print_agent_response(turn_result["response"])
 
         if turn_result.get("is_done", False):
-            requirements_summary = turn_result["response"]
+            is_done = True
+            requirements_summary = turn_result.get("requirements_summary", turn_result["response"])
             print_completion_message()
             break
     else:
-        raise WorkflowError("Conversation exceeded 20 turns without completion")
+        raise WorkflowError(
+            "Conversation exceeded 20 turns without completion. "
+            "Agent did not emit { \"done\": true } in final response."
+        )
 
+    if not is_done:
+        raise WorkflowError(
+            "Conversation completed without proper completion signal. "
+            "Agent must return JSON with { \"done\": true }."
+        )
+    
     if not requirements_summary:
         raise WorkflowError("Agent did not provide requirements summary")
 

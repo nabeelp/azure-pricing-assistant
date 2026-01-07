@@ -1,6 +1,7 @@
 """Shared orchestration helpers for CLI and web interfaces."""
 
 import json
+import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,8 +14,13 @@ from src.agents import (
     create_proposal_agent,
     create_question_agent,
 )
-from .models import ProposalBundle, SessionData
+from src.agents.pricing_agent import parse_pricing_response
+from src.shared.errors import WorkflowError
+from .models import ProposalBundle, SessionData, PricingResult
 from .session import InMemorySessionStore
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 async def run_question_turn(
@@ -33,6 +39,13 @@ async def run_question_turn(
     else:
         thread = session_data.thread
 
+    # Check turn limit before running
+    if session_data.turn_count >= 20:
+        raise WorkflowError(
+            "Maximum conversation turns (20) reached. "
+            "Please generate a proposal to continue with cost analysis."
+        )
+
     response_text = ""
     async for update in question_agent.run_stream(user_message, thread=thread):
         if update.text:
@@ -40,6 +53,9 @@ async def run_question_turn(
 
     session_data.history.append({"role": "user", "content": user_message})
     session_data.history.append({"role": "assistant", "content": response_text})
+    
+    # Increment turn counter after successful run
+    session_data.turn_count += 1
     session_store.set(session_id, session_data)
 
     is_done, requirements_summary = parse_question_completion(response_text)
@@ -101,6 +117,30 @@ async def run_bom_pricing_proposal(
             elif current_agent == "proposal_agent":
                 proposal_output += text
 
+    # Parse and validate pricing output
+    try:
+        pricing_result = parse_pricing_response(pricing_output)
+        
+        # Validate total_monthly calculation
+        calculated_total = sum(
+            item["monthly_cost"] * item["quantity"]
+            for item in pricing_result["items"]
+        )
+        
+        if abs(calculated_total - pricing_result["total_monthly"]) > 0.01:
+            logger.warning(
+                f"Pricing total mismatch: calculated ${calculated_total:.2f} "
+                f"vs reported ${pricing_result['total_monthly']:.2f}"
+            )
+            # Correct the total
+            pricing_result["total_monthly"] = calculated_total
+        
+        logger.info(f"Pricing validated: {len(pricing_result['items'])} items, "
+                   f"total ${pricing_result['total_monthly']:.2f}")
+    except ValueError as e:
+        logger.error(f"Pricing schema validation failed: {e}")
+        raise
+
     return ProposalBundle(
         bom_text=bom_output,
         pricing_text=pricing_output,
@@ -116,13 +156,27 @@ def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:
 def parse_question_completion(response_text: str) -> Tuple[bool, Optional[str]]:
     """Parse Question Agent response for completion flag and requirements summary.
 
-    Supports structured JSON payloads.
+    Supports structured JSON payloads. Prefers ```json code blocks and logs warnings
+    if JSON is found in non-standard formats.
     """
 
     if not response_text:
         return False, None
 
-    obj = _extract_json_object(response_text)
+    # Try code block extraction first (preferred format)
+    obj = _extract_json_from_code_block(response_text)
+    extraction_method = "code_block"
+    
+    # Fall back to other formats if code block not found
+    if obj is None:
+        obj = _extract_json_object(response_text)
+        extraction_method = "other_format"
+        
+        if obj is not None:
+            logger.warning(
+                "Question Agent returned JSON but not in ```json code block format. "
+                "Please update agent instructions to use proper format."
+            )
 
     if isinstance(obj, dict):
         done = bool(obj.get("done"))
@@ -131,10 +185,36 @@ def parse_question_completion(response_text: str) -> Tuple[bool, Optional[str]]:
             or obj.get("requirements_summary")
             or obj.get("summary")
         )
+        
+        if done and requirements:
+            logger.info(
+                f"Completion detected (extraction method: {extraction_method}), "
+                f"requirements: {requirements[:80]}..."
+            )
+        
         return done, requirements
 
-
     return False, None
+
+
+def _extract_json_from_code_block(text: str) -> Optional[Any]:
+    """Extract JSON from ```json code block specifically.
+    
+    Returns None if no code block found, so fallback logic can try other formats.
+    """
+    # Try ```json code block first (preferred format)
+    pattern = r"```json\s*(\{.*?\})\s*```"
+    match = re.search(pattern, text, flags=re.DOTALL)
+    
+    if match:
+        candidate = match.group(1)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse JSON from code block: {candidate}")
+            return None
+    
+    return None
 
 
 def _extract_json_object(text: str) -> Optional[Any]:

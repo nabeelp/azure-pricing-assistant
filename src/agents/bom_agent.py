@@ -10,8 +10,7 @@ from agent_framework_azure_ai import AzureAIAgentClient
 # Default MCP URL if not set in environment
 DEFAULT_PRICING_MCP_URL = "http://localhost:8080/mcp"
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Get logger (setup handled by application entry point)
 logger = logging.getLogger(__name__)
 
 

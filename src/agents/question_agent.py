@@ -43,18 +43,46 @@ Once you have this minimum information (or more if the conversation naturally pr
 
 FINAL RESPONSE FORMAT (when you have enough info):
 - Return ONLY a JSON object wrapped in a ```json code block
+- The response MUST start with: ```json
+- The response MUST end with: ```
 - Shape: { "requirements": "<concise requirements summary>", "done": true }
-- Do not include follow-up text, questions, or extra prose outside the JSON.
+- Do NOT add any text before or after the code block
+- Do NOT ask follow-up questions or offer additional prose
+
+EXAMPLE CORRECT FORMAT:
+```json
+{
+  "requirements": "Workload: e-commerce web application; Scale: 10,000 users; Primary services: App Service, SQL Database, Application Insights; Region: East US; Database size: ~50GB; Peak load: 1000 req/min",
+  "done": true
+}
+```
+
+EXAMPLE INCORRECT FORMATS (DO NOT USE):
+❌ Here's my summary: ```json { "requirements": "...", "done": true } ``` Let me know if you need clarification!
+❌ ```json { "requirements": "...", "done": true } ``` Feel free to ask for changes!
+❌ { "requirements": "...", "done": true }  (missing code block wrapper)
+❌ Requirements: ... | Done: true (not JSON format)
+
+IMPORTANT:
+- The JSON code block wrapper is REQUIRED - the orchestrator will look for it
+- Include ONLY the JSON object within the code block, nothing else
+- If you need to ask more questions, respond normally (not as JSON)
 
 IMPORTANT RULES:
 - Ask only ONE question per response
-- Be conversational and helpful
+- Be conversational and helpful when asking questions
 - Use microsoft_docs_search when you need current Azure service information
 - If the user provides multiple pieces of information in one answer, acknowledge everything and move to the next relevant question
 - Adapt your questions based on their previous answers
 - Don't ask about information they've already provided
 - If they're uncertain about technical details, suggest common options (using docs if needed)
-- The final message must be the JSON payload with done=true; do not add other text before or after
+
+FINAL SUBMISSION RULES:
+- When you have gathered all minimum requirements (workload, services, region, sizing data), emit the JSON completion
+- The JSON response MUST be in a ```json code block
+- Do NOT add any text before or after the JSON code block
+- Do NOT ask follow-up questions or offer additional commentary in the final response
+- If you need more information, respond with normal text/questions (not as JSON) and continue the conversation
 """
     microsoft_docs_search = MCPStreamableHTTPTool(
         name="Microsoft Learn",

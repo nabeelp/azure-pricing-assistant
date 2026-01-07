@@ -9,6 +9,7 @@ from src.core.orchestrator import (
     run_question_turn,
 )
 from src.core.models import ProposalBundle
+from src.shared.errors import WorkflowError
 from .context import InterfaceContext
 
 
@@ -56,6 +57,15 @@ class WorkflowHandler:
                 session_id,
                 message,
             )
+        except WorkflowError as e:
+            # Turn limit reached - trigger proposal generation UI
+            if "Maximum conversation turns" in str(e):
+                return {
+                    "response": str(e),
+                    "error": str(e),
+                    "is_done": True,
+                }
+            raise
         except Exception as e:
             return {
                 "error": str(e),

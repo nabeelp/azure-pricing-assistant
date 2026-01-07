@@ -46,8 +46,8 @@ all = [
 ]
 
 [project.scripts]
-azure-pricing-cli = "main:main"
-azure-pricing-web = "launch-web:main"
+azure-pricing-cli = "src.cli.app:main"
+azure-pricing-web = "src.web.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
