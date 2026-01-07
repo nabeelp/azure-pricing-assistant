@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "azure-pricing-assistant"
+version = "0.1.0"
+description = "AI-powered Azure pricing solution using Microsoft Agent Framework"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+
+# Core dependencies (required for all use cases)
+dependencies = [
+    "agent-framework-azure-ai>=1.0.0b251204",
+    "azure-identity>=1.15.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.25.0",
+    "opentelemetry-sdk>=1.25.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+# Web interface dependencies
+web = [
+    "Flask>=3.0.0",
+    "gunicorn>=21.2.0",
+]
+
+# CLI interface dependencies (currently no extra deps beyond core)
+cli = []
+
+# Development dependencies
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.5.0",
+]
+
+# All dependencies (for backward compatibility)
+all = [
+    "azure-pricing-assistant[web,cli,dev]",
+]
+
+[project.scripts]
+azure-pricing-cli = "src.cli.app:main"
+azure-pricing-web = "src.web.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311']
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
