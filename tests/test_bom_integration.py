@@ -2,6 +2,8 @@
 
 import asyncio
 import os
+
+import pytest
 from dotenv import load_dotenv
 from azure.identity.aio import DefaultAzureCredential
 from agent_framework_azure_ai import AzureAIAgentClient
@@ -9,6 +11,10 @@ from agent_framework_azure_ai import AzureAIAgentClient
 from src.agents.bom_agent import create_bom_agent, parse_bom_response
 
 
+RUN_LIVE = os.getenv("RUN_LIVE_BOM_INTEGRATION") == "1"
+
+
+@pytest.mark.asyncio
 async def test_bom_agent_simple_web_app():
     """
     Test BOM Agent with simple web app requirements.
@@ -17,10 +23,13 @@ async def test_bom_agent_simple_web_app():
     """
     load_dotenv()
     
+    if not RUN_LIVE:
+        pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run live BOM integration tests")
+
     endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
-    if not endpoint:
-        print("⚠️  AZURE_AI_PROJECT_ENDPOINT not set - skipping integration test")
-        return
+    model = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME")
+    if not endpoint or not model:
+        pytest.skip("Missing AZURE_AI_PROJECT_ENDPOINT or AZURE_AI_MODEL_DEPLOYMENT_NAME")
     
     print("\n=== Test 1: Simple Web Application ===\n")
     
@@ -30,13 +39,13 @@ async def test_bom_agent_simple_web_app():
 - Hosting Service: Azure App Service
 - Deployment Region: East US
 - Special Requirements: None (standard deployment)
-
-We are DONE!"""
+"""
     
     async with DefaultAzureCredential() as credential:
         client = AzureAIAgentClient(
             project_endpoint=endpoint,
-            async_credential=credential
+            model_deployment_name=model,
+            credential=credential,
         )
         
         bom_agent = create_bom_agent(client)
@@ -83,6 +92,7 @@ We are DONE!"""
             raise
 
 
+@pytest.mark.asyncio
 async def test_bom_agent_database_workload():
     """
     Test BOM Agent with database requirements.
@@ -91,10 +101,13 @@ async def test_bom_agent_database_workload():
     """
     load_dotenv()
     
+    if not RUN_LIVE:
+        pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run live BOM integration tests")
+
     endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
-    if not endpoint:
-        print("⚠️  AZURE_AI_PROJECT_ENDPOINT not set - skipping integration test")
-        return
+    model = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME")
+    if not endpoint or not model:
+        pytest.skip("Missing AZURE_AI_PROJECT_ENDPOINT or AZURE_AI_MODEL_DEPLOYMENT_NAME")
     
     print("\n=== Test 2: Database Workload ===\n")
     
@@ -105,13 +118,13 @@ async def test_bom_agent_database_workload():
 - Transaction Volume: Medium (1000s of transactions per minute)
 - Deployment Region: West US
 - Special Requirements: None
-
-We are DONE!"""
+"""
     
     async with DefaultAzureCredential() as credential:
         client = AzureAIAgentClient(
             project_endpoint=endpoint,
-            async_credential=credential
+            model_deployment_name=model,
+            credential=credential,
         )
         
         bom_agent = create_bom_agent(client)
@@ -157,6 +170,7 @@ We are DONE!"""
             raise
 
 
+@pytest.mark.asyncio
 async def test_bom_agent_multi_service():
     """
     Test BOM Agent with multi-service requirements.
@@ -165,10 +179,13 @@ async def test_bom_agent_multi_service():
     """
     load_dotenv()
     
+    if not RUN_LIVE:
+        pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run live BOM integration tests")
+
     endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
-    if not endpoint:
-        print("⚠️  AZURE_AI_PROJECT_ENDPOINT not set - skipping integration test")
-        return
+    model = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME")
+    if not endpoint or not model:
+        pytest.skip("Missing AZURE_AI_PROJECT_ENDPOINT or AZURE_AI_MODEL_DEPLOYMENT_NAME")
     
     print("\n=== Test 3: Multi-Service Solution ===\n")
     
@@ -181,13 +198,13 @@ async def test_bom_agent_multi_service():
 - Scale: 5,000 users per day
 - Deployment Region: East US 2
 - Special Requirements: None
-
-We are DONE!"""
+"""
     
     async with DefaultAzureCredential() as credential:
         client = AzureAIAgentClient(
             project_endpoint=endpoint,
-            async_credential=credential
+            model_deployment_name=model,
+            credential=credential,
         )
         
         bom_agent = create_bom_agent(client)

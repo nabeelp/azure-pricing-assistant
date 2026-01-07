@@ -1,6 +1,8 @@
 """Shared orchestration helpers for CLI and web interfaces."""
 
-from typing import Any, Dict, List, Tuple
+import json
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_framework import AgentRunUpdateEvent, ExecutorInvokedEvent, SequentialBuilder
 from agent_framework_azure_ai import AzureAIAgentClient
@@ -40,17 +42,27 @@ async def run_question_turn(
     session_data.history.append({"role": "assistant", "content": response_text})
     session_store.set(session_id, session_data)
 
-    is_done = "We are DONE!" in response_text
+    is_done, requirements_summary = parse_question_completion(response_text)
 
     return {
         "response": response_text,
         "is_done": is_done,
+        "requirements_summary": requirements_summary,
         "history": session_data.history,
     }
 
 
 def history_to_requirements(history: List[Dict[str, str]]) -> str:
-    """Flatten chat history into a single requirements string."""
+    """Derive requirements from history, preferring the final completion payload."""
+    for msg in reversed(history):
+        if msg.get("role") != "assistant":
+            continue
+
+        is_done, requirements = parse_question_completion(msg.get("content", ""))
+        if is_done and requirements:
+            return requirements
+
+    # Fallback: flatten full conversation
     return "\n".join(f"{msg['role']}: {msg['content']}" for msg in history)
 
 
@@ -99,3 +111,52 @@ async def run_bom_pricing_proposal(
 def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:
     """Clear session state."""
     session_store.delete(session_id)
+
+
+def parse_question_completion(response_text: str) -> Tuple[bool, Optional[str]]:
+    """Parse Question Agent response for completion flag and requirements summary.
+
+    Supports structured JSON payloads.
+    """
+
+    if not response_text:
+        return False, None
+
+    obj = _extract_json_object(response_text)
+
+    if isinstance(obj, dict):
+        done = bool(obj.get("done"))
+        requirements = (
+            obj.get("requirements")
+            or obj.get("requirements_summary")
+            or obj.get("summary")
+        )
+        return done, requirements
+
+
+    return False, None
+
+
+def _extract_json_object(text: str) -> Optional[Any]:
+    """Extract a JSON object from plain text or fenced code blocks."""
+
+    patterns = [
+        r"```json\s*(\{.*?\})\s*```",
+        r"```\s*(\{.*?\})\s*```",
+        r"(\{.*\})",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.DOTALL)
+        if not match:
+            continue
+        candidate = match.group(1)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+
+    try:
+        return json.loads(text.strip())
+    except Exception:
+        return None

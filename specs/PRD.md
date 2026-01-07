@@ -12,7 +12,7 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 
 ## 3. User Workflow
 1.  **Discovery**: The user initiates a chat session. The **Question Agent** asks adaptive questions to understand the workload, scale, preferred services, and region.
-2.  **Handoff**: Once sufficient information is gathered (signaled by "We are DONE!"), the system transitions to the processing workflow.
+2.  **Handoff**: Once sufficient information is gathered (signaled by a `done: true` completion flag from the Question Agent), the system transitions to the processing workflow.
 3.  **BOM Generation**: The **BOM Agent** analyzes the requirements and produces a structured Bill of Materials (JSON).
 4.  **Pricing**: The **Pricing Agent** takes the BOM, queries the Azure Retail Prices API for each item, and calculates monthly costs.
 5.  **Proposal**: The **Proposal Agent** synthesizes the requirements, BOM, and pricing into a comprehensive Markdown proposal.
@@ -26,7 +26,7 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
     -   Conduct multi-turn conversation (max 20 turns).
     -   Adapt questions based on workload type (Web, DB, AI/ML, etc.).
     -   Use `microsoft_docs_search` MCP tool to verify service capabilities and region availability.
--   **Output**: A summarized list of requirements ending with the termination phrase "We are DONE!".
+-   **Output**: A JSON object wrapped in a ```json code block: `{ "requirements": "<summary>", "done": true }` (no extra text outside the JSON).
 -   **Minimum Data Points**: Workload Type, Scale/Size, Specific Service(s), Deployment Region.
 
 ### 4.2. BOM Agent (Service Mapping)
@@ -120,7 +120,7 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 ### 5.2. Orchestration
 The application uses a two-stage orchestration pattern:
 
-1.  **Discovery Stage**: Interactive chat loop managed by `ChatAgent` with thread-based conversation. Terminates when "We are DONE!" is detected in the agent response.
+1.  **Discovery Stage**: Interactive chat loop managed by `ChatAgent` with thread-based conversation. Terminates when the Question Agent emits `done: true` in its final JSON response.
 2.  **Processing Stage**: `SequentialBuilder` pipeline executing agents in order: `BOM Agent` → `Pricing Agent` → `Proposal Agent`.
 
 ### 5.3. Data Flow
@@ -156,7 +156,7 @@ async with DefaultAzureCredential() as credential:
 -   **Performance**: End-to-end processing (after chat) should complete within reasonable time (approx. 30-60s).
 -   **Security**: No customer credentials required; uses public pricing API. Azure CLI credentials used for Agent Service authentication.
 -   **Observability**: OpenTelemetry tracing enabled for monitoring and debugging.
--   **Testing**: Run end-to-end agent workflow tests, verify Question Agent termination phrase "We are DONE!", validate BOM JSON against schema, and test pricing agent with live MCP server at `http://localhost:8080/mcp`.
+-   **Testing**: Run end-to-end agent workflow tests, verify Question Agent emits `done: true` with a structured requirements summary, validate BOM JSON against schema, and test pricing agent with live MCP server at `http://localhost:8080/mcp`.
 
 # 7. Planned Enhancements
 -   **Tune Questioning Strategy**: Improve adaptive questioning based on workload type and experience level.

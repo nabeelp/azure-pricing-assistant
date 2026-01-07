@@ -39,9 +39,12 @@ You MUST gather at minimum:
 - Deployment region
 - Data required to help size and price the solution (e.g. user count, data size, etc.)
 
-Once you have this minimum information (or more if the conversation naturally provides it), provide a clear summary of all requirements gathered.  ONLY summarise the requirements, do not pose any follow up statements or questions.
+Once you have this minimum information (or more if the conversation naturally provides it), provide a clear summary of all requirements gathered.
 
-END your final summary with exactly this text on a new line: "We are DONE!"
+FINAL RESPONSE FORMAT (when you have enough info):
+- Return ONLY a JSON object wrapped in a ```json code block
+- Shape: { "requirements": "<concise requirements summary>", "done": true }
+- Do not include follow-up text, questions, or extra prose outside the JSON.
 
 IMPORTANT RULES:
 - Ask only ONE question per response
@@ -51,7 +54,7 @@ IMPORTANT RULES:
 - Adapt your questions based on their previous answers
 - Don't ask about information they've already provided
 - If they're uncertain about technical details, suggest common options (using docs if needed)
-- The text "We are DONE!" should appear ONLY when you're providing the final requirements summary
+- The final message must be the JSON payload with done=true; do not add other text before or after
 """
     microsoft_docs_search = MCPStreamableHTTPTool(
         name="Microsoft Learn",

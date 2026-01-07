@@ -239,9 +239,13 @@ Agent: Based on our conversation, here's a summary of your requirements:
 - **Recommended Services**: Azure App Service, Azure SQL Database
 - **Deployment Region**: East US
 
-We are DONE!
+```json
+{
+   "requirements": "Workload: e-commerce web app; Scale: ~5,000 daily users; Services: Azure App Service, Azure SQL Database; Region: East US",
+   "done": true
+}
 
-✅ Requirements gathering complete!
+✅ Requirements gathering complete (done=true)!
 
 === Starting BOM → Pricing → Proposal Workflow ===
 

@@ -21,7 +21,7 @@ Keep Copilot completions aligned with the PRD, schemas, orchestration rules, and
 
 ## Agent & Orchestration Rules
 - Follow PRD Section 5.2: discovery via ChatAgent loop, then SequentialBuilder BOM → Pricing → Proposal. Keep this order unchanged.
-- Termination phrase: only the Question Agent emits "We are DONE!" once, in its final response. Never surface it in intermediate agent outputs.
+- Completion contract: Question Agent final message is a JSON object `{ "requirements": "...", "done": true }` in a ```json code block; use this flag to trigger BOM/Pricing/Proposal. Do not emit legacy phrases or extra prose in the final message.
 - 20-turn max for discovery. Keep prompts aligned to the role/capability definitions in PRD Section 4.
 
 ## Tooling (authoritative list in PRD Section 4.3)
@@ -59,6 +59,6 @@ Keep Copilot completions aligned with the PRD, schemas, orchestration rules, and
 
 ## Common Pitfalls
 - Forgetting to start or point to the Azure Pricing MCP server.
-- Emitting "We are DONE!" outside the Question Agent final message.
+- Letting the Question Agent emit prose or a legacy phrase instead of the `{ "done": true }` JSON envelope.
 - Drifting from schemas (missing armRegionName, wrong totals, missing pricing_date/currency).
 - Not awaiting async tool calls or handling tool failures with $0.00 + error notes.
