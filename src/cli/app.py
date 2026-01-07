@@ -14,6 +14,9 @@ from src.cli.prompts import (
     print_final_message,
     print_proposal_header,
     print_workflow_start,
+    print_agent_start,
+    print_agent_progress,
+    print_agent_complete,
 )
 from src.shared.async_utils import create_event_loop
 from src.shared.errors import WorkflowError
@@ -75,18 +78,49 @@ async def run_cli_workflow() -> None:
     if not requirements_summary:
         raise WorkflowError("Agent did not provide requirements summary")
 
-    # Generate proposal workflow
+    # Generate proposal workflow with progress
     print_header("Generating Proposal")
 
-    proposal_result = await interface.generate_proposal(session_id)
+    bom_text = ""
+    pricing_text = ""
+    proposal_text = ""
+    current_agent = ""
 
-    if "error" in proposal_result:
-        print_error(proposal_result["error"])
-        return
+    async for event in interface.generate_proposal_stream(session_id):
+        if "error" in event:
+            print_error(event["error"])
+            return
+        
+        event_type = event.get("event_type")
+        agent_name = event.get("agent_name")
+        message = event.get("message")
+        data = event.get("data")
+        
+        if event_type == "agent_start":
+            if current_agent:
+                print_agent_complete(current_agent)
+            current_agent = agent_name
+            print_agent_start(agent_name)
+        
+        elif event_type == "agent_progress":
+            if message:
+                print_agent_progress(message)
+        
+        elif event_type == "workflow_complete":
+            if current_agent:
+                print_agent_complete(current_agent)
+            
+            bom_text = data.get("bom", "")
+            pricing_text = data.get("pricing", "")
+            proposal_text = data.get("proposal", "")
+        
+        elif event_type == "error":
+            print_error(message or "Unknown error")
+            return
 
     # Display final proposal
     print_proposal_header()
-    print(proposal_result.get("proposal", ""))
+    print(proposal_text)
     print_final_message()
 
 

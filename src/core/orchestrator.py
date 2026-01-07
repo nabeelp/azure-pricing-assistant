@@ -148,6 +148,110 @@ async def run_bom_pricing_proposal(
     )
 
 
+async def run_bom_pricing_proposal_stream(
+    client: AzureAIAgentClient,
+    requirements_text: str,
+):
+    """
+    Execute BOM → Pricing → Proposal workflow with streaming progress events.
+    
+    Args:
+        client: Azure AI Agent client
+        requirements_text: User requirements summary
+        
+    Yields:
+        ProgressEvent: Progress updates throughout the workflow
+    """
+    from src.core.models import ProgressEvent
+    
+    bom_agent = create_bom_agent(client)
+    pricing_agent = create_pricing_agent(client)
+    proposal_agent = create_proposal_agent(client)
+
+    workflow = SequentialBuilder().participants(
+        [bom_agent, pricing_agent, proposal_agent]
+    ).build()
+
+    bom_output = ""
+    pricing_output = ""
+    proposal_output = ""
+    current_agent = ""
+
+    try:
+        async for event in workflow.run_stream(requirements_text):
+            # Track which agent is running
+            if isinstance(event, ExecutorInvokedEvent) and getattr(event, "executor_id", None):
+                current_agent = event.executor_id
+                # Yield agent start event
+                yield ProgressEvent(
+                    event_type="agent_start",
+                    agent_name=current_agent,
+                    message=f"Starting {current_agent.replace('_', ' ').title()}..."
+                )
+                continue
+
+            # Stream agent text updates
+            if isinstance(event, AgentRunUpdateEvent):
+                text = event.data.text if getattr(event, "data", None) else None
+                if not text:
+                    continue
+
+                # Accumulate output for each agent
+                if current_agent == "bom_agent":
+                    bom_output += text
+                elif current_agent == "pricing_agent":
+                    pricing_output += text
+                elif current_agent == "proposal_agent":
+                    proposal_output += text
+
+                # Yield progress event with text chunk
+                yield ProgressEvent(
+                    event_type="agent_progress",
+                    agent_name=current_agent,
+                    message=text
+                )
+
+        # Validate pricing output
+        pricing_result = parse_pricing_response(pricing_output)
+        if pricing_result and pricing_result.get("items"):
+            # Recalculate total for validation
+            calculated_total = sum(
+                item.get("monthly_cost", 0) * item.get("quantity", 1)
+                for item in pricing_result.get("items", [])
+            )
+            reported_total = pricing_result.get("total_monthly", 0)
+
+            if abs(calculated_total - reported_total) > 0.01:
+                logger.warning(
+                    f"Pricing total mismatch: calculated ${calculated_total:.2f} "
+                    f"vs reported ${reported_total:.2f}"
+                )
+                # Update pricing output with corrected total
+                pricing_result["total_monthly"] = calculated_total
+                pricing_output = json.dumps(pricing_result, indent=2)
+
+        # Yield workflow completion with all outputs
+        yield ProgressEvent(
+            event_type="workflow_complete",
+            agent_name="",
+            message="Workflow complete",
+            data={
+                "bom": bom_output,
+                "pricing": pricing_output,
+                "proposal": proposal_output
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in streaming workflow: {e}")
+        yield ProgressEvent(
+            event_type="error",
+            agent_name=current_agent or "unknown",
+            message=f"Error: {str(e)}",
+            data={"error": str(e)}
+        )
+
+
 def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:
     """Clear session state."""
     session_store.delete(session_id)

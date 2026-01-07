@@ -1,7 +1,7 @@
 """Shared data models for orchestrator flows."""
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -51,6 +51,15 @@ class ProposalBundle:
     bom_text: str
     pricing_text: str
     proposal_text: str
+
+
+@dataclass
+class ProgressEvent:
+    """Progress event for streaming workflow updates."""
+    event_type: str  # "agent_start", "agent_progress", "workflow_complete", "error"
+    agent_name: str  # "bom_agent", "pricing_agent", "proposal_agent", ""
+    message: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
 
 
 @dataclass

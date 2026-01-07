@@ -40,3 +40,20 @@ def print_final_message() -> None:
     print("=" * 60)
     print("Workflow completed successfully!")
     print("=" * 60)
+
+
+def print_agent_start(agent_name: str) -> None:
+    """Print agent start message."""
+    agent_display = agent_name.replace("_", " ").title()
+    print(f"\n🔄 Starting {agent_display}...\n", flush=True)
+
+
+def print_agent_progress(text: str) -> None:
+    """Print incremental agent progress (streamed text)."""
+    print(text, end='', flush=True)
+
+
+def print_agent_complete(agent_name: str) -> None:
+    """Print agent completion message."""
+    agent_display = agent_name.replace("_", " ").title()
+    print(f"\n✅ {agent_display} complete\n", flush=True)
