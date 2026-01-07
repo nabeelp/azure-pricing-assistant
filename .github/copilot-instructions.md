@@ -10,11 +10,12 @@ Keep Copilot completions aligned with the PRD, schemas, orchestration rules, and
 - Install deps: `pip install -e .[dev]` (Python 3.10+).
 - Env vars (see README table): AZURE_AI_PROJECT_ENDPOINT (required), AZURE_PRICING_MCP_URL (default http://localhost:8080/mcp), FLASK_SECRET_KEY for web, optional PORT.
 - Azure auth: `az login` (and `azd auth login` for azd flows).
-- Start Azure Pricing MCP: run the server from https://github.com/azure/azure-pricing-mcp and keep endpoint in sync with AZURE_PRICING_MCP_URL.
+- Start Azure Pricing MCP: run the server from https://github.com/nabeelp/AzurePricingMCP/tree/streamable-http and keep endpoint in sync with AZURE_PRICING_MCP_URL.
 - Quick-start Azure Pricing MCP (per repo README; adjust if updated):
-	- `git clone https://github.com/azure/azure-pricing-mcp`
-	- `cd azure-pricing-mcp && npm install`
-	- `npm run start` (or `npm run dev` for hot-reload); default SSE endpoint http://localhost:8080/mcp
+	- `git clone https://github.com/nabeelp/AzurePricingMCP && cd AzurePricingMCP && git checkout streamable-http`
+	- `python -m venv .venv && source .venv/bin/activate` (or `.venv\Scripts\activate` on Windows)
+	- `pip install -r requirements.txt`
+	- `python -m azure_pricing_mcp`; default HTTP endpoint http://localhost:8080/mcp
 	- Export/override `AZURE_PRICING_MCP_URL` in this app to point at the running endpoint
 - Run web app: `python -m src.web.app`. CLI: `python -m src.cli.app`.
 - Tests: `pytest tests/test_bom_agent.py tests/test_pricing_agent.py tests/test_bom_integration.py` (add more cases as you add features).

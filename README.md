@@ -96,7 +96,7 @@ pip install -e .[all]     # Everything
 - Python 3.10 or higher
 - Azure CLI installed and authenticated (`az login`)
 - Azure AI Foundry project endpoint
-- Azure Pricing MCP Server running locally (SSE endpoint, see [Azure Pricing MCP](https://github.com/azure/azure-pricing-mcp))
+- Azure Pricing MCP Server running locally (HTTP endpoint, see [Azure Pricing MCP](https://github.com/nabeelp/AzurePricingMCP/tree/streamable-http))
 
 ### For Azure Deployment
 - [Azure Developer CLI (azd)](https://aka.ms/install-azd) installed
@@ -162,7 +162,7 @@ pip install -e .[all]     # Everything
 
 6. **Start Azure Pricing MCP Server**
    
-   Follow the instructions in the [Azure Pricing MCP repository](https://github.com/azure/azure-pricing-mcp) to start the MCP server locally. The agents expect the endpoint at `http://localhost:8080/mcp` (configure via `AZURE_PRICING_MCP_URL`).
+   Follow the instructions in the [Azure Pricing MCP repository](https://github.com/nabeelp/AzurePricingMCP/tree/streamable-http) to start the MCP server locally. The agents expect the endpoint at `http://localhost:8080/mcp` (configure via `AZURE_PRICING_MCP_URL`).
 
 7. **Optional - Start Aspire Dashboard for Observability**
    ```bash
