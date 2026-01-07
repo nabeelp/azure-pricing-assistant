@@ -56,6 +56,41 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
     -   Calculate total monthly cost by summing item costs (monthly_cost * quantity).
     -   Optionally suggest cost optimization alternatives using `azure_region_recommend`.
 -   **Output**: JSON object with itemized costs, total monthly estimate, savings options, and cost optimization suggestions.
+    -   **Schema** (authoritative):
+            -   `items`: array of objects `{ serviceName, sku, region, armRegionName, quantity, hours_per_month, unit_price, monthly_cost, notes? }`.
+            -   `total_monthly`: number (sum of `item.monthly_cost * item.quantity`).
+            -   `currency`: string (e.g., "USD").
+            -   `pricing_date`: ISO 8601 date string indicating pricing snapshot.
+            -   `savings_options`: optional array of objects `{ description, estimated_monthly_savings }`.
+            -   `errors`: optional array of strings for lookup failures (use when fallback to $0.00 is applied).
+    -   **Example**:
+    ```json 
+    {
+        "items": [
+            {
+                "serviceName": "Azure App Service",
+                "sku": "S1",
+                "region": "East US",
+                "armRegionName": "eastus",
+                "quantity": 2,
+                "hours_per_month": 730,
+                "unit_price": 0.1,
+                "monthly_cost": 146.0,
+                "notes": "Fallback to $0.00 if lookup fails"
+            }
+        ],
+        "total_monthly": 292.0,
+        "currency": "USD",
+        "pricing_date": "2026-01-07",
+        "savings_options": [
+            {
+                "description": "Consider West US for 8% lower rate",
+                "estimated_monthly_savings": 12.0
+            }
+        ],
+        "errors": []
+    }
+    ```
 
 ### 4.4. Proposal Agent (Documentation)
 -   **Role**: Sales Consultant.
@@ -121,6 +156,7 @@ async with DefaultAzureCredential() as credential:
 -   **Performance**: End-to-end processing (after chat) should complete within reasonable time (approx. 30-60s).
 -   **Security**: No customer credentials required; uses public pricing API. Azure CLI credentials used for Agent Service authentication.
 -   **Observability**: OpenTelemetry tracing enabled for monitoring and debugging.
+-   **Testing**: Run end-to-end agent workflow tests, verify Question Agent termination phrase "We are DONE!", validate BOM JSON against schema, and test pricing agent with live MCP server at `http://localhost:8080/mcp`.
 
 # 7. Planned Enhancements
 -   **Tune Questioning Strategy**: Improve adaptive questioning based on workload type and experience level.
