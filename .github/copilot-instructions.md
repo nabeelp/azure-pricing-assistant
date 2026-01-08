@@ -91,14 +91,17 @@ All commands should be run from the repository root:
 
 ### Installation
 ```bash
-# Development (recommended - includes all dependencies)
+# Development (includes testing and linting tools)
 pip install -e .[dev]
 
-# Web interface only
+# Web interface (includes Flask and Gunicorn)
 pip install -e .[web]
 
-# CLI interface only
+# CLI interface (core dependencies only)
 pip install -e .[cli]
+
+# All optional dependencies (web + cli + dev)
+pip install -e .[all]
 ```
 
 ### Testing
@@ -115,7 +118,7 @@ RUN_LIVE_BOM_INTEGRATION=1 pytest tests/test_bom_integration.py -v -s
 # Full E2E tests (requires Azure credentials + Azure Pricing MCP server)
 RUN_LIVE_E2E=1 pytest tests/test_end_to_end_workflow.py -v -s
 
-# All tests with coverage
+# With coverage (requires pytest-cov: pip install pytest-cov)
 pytest tests/ --cov=src --cov-report=html -v
 ```
 
