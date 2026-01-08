@@ -28,7 +28,7 @@ setup_logging(
 )
 
 # Quiet noisy third-party loggers (access logs, SDKs, telemetry)
-for _noisy in ("werkzeug", "opentelemetry", "azure", "agent_framework"):
+for _noisy in ("werkzeug", "azure", "agent_framework"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # Resolve template directory

@@ -166,7 +166,7 @@ async def main() -> None:
     )
 
     # Quiet noisy third-party loggers
-    for noisy in ("opentelemetry", "azure", "agent_framework"):
+    for noisy in ("azure", "agent_framework"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     setup_observability()
 
