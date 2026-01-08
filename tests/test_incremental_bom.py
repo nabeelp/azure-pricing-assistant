@@ -23,7 +23,7 @@ class TestBOMTriggerLogic:
         assert should_trigger_bom_update(response_with_done, 5) is True
 
     def test_should_trigger_on_service_mention(self):
-        """Should trigger BOM update when services are mentioned."""
+        """Should trigger BOM update when services are mentioned in response."""
         responses = [
             "I recommend using Azure App Service for your web application.",
             "You'll need a SQL Database for your data storage.",
@@ -33,6 +33,19 @@ class TestBOMTriggerLogic:
 
         for response in responses:
             assert should_trigger_bom_update(response, 2) is True
+
+    def test_should_trigger_on_service_mention_in_history(self):
+        """Should trigger BOM update when services are mentioned in conversation history."""
+        # Agent asks a question (no service keywords)
+        response = "Which Azure region(s) are you targeting for deployment?"
+
+        # But user mentioned service in history
+        history = [
+            {"role": "user", "content": "I want a web app"},
+            {"role": "assistant", "content": response},
+        ]
+
+        assert should_trigger_bom_update(response, 2, history) is True
 
     def test_should_trigger_every_3_turns(self):
         """Should trigger BOM update every 3 turns."""

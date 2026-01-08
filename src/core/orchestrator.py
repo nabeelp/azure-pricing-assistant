@@ -80,7 +80,9 @@ async def run_question_turn(
     }
 
     # Trigger incremental BOM update if enabled and conditions are met
-    if enable_incremental_bom and should_trigger_bom_update(response_text, session_data.turn_count):
+    if enable_incremental_bom and should_trigger_bom_update(
+        response_text, session_data.turn_count, session_data.history
+    ):
         logger.info(f"Triggering incremental BOM update for session {session_id}")
 
         # Build recent context from last few exchanges
@@ -416,19 +418,22 @@ def _merge_bom_items(
     return merged
 
 
-def should_trigger_bom_update(response_text: str, turn_count: int) -> bool:
+def should_trigger_bom_update(
+    response_text: str, turn_count: int, conversation_history: List[Dict[str, str]] = None
+) -> bool:
     """
     Determine if the question agent's response indicates enough info for BOM update.
 
     Triggers BOM update when:
-    - User has provided service details (mentions specific Azure services)
+    - User has provided service details (mentions specific Azure services in history)
     - User has specified region and scale
-    - Every 3-4 turns to catch accumulated information
+    - Every 3 turns to catch accumulated information
     - When conversation is marked as done
 
     Args:
         response_text: Question agent's response
         turn_count: Current turn count
+        conversation_history: Full conversation history (optional)
 
     Returns:
         True if BOM should be updated
@@ -438,9 +443,11 @@ def should_trigger_bom_update(response_text: str, turn_count: int) -> bool:
     if is_done:
         return True
 
-    # Check for service/configuration mentions (indicators of sufficient info)
+    # Check for service/configuration mentions in conversation history
     service_indicators = [
         "app service",
+        "web app",
+        "web",
         "sql",
         "database",
         "storage",
@@ -461,10 +468,23 @@ def should_trigger_bom_update(response_text: str, turn_count: int) -> bool:
         "scale",
     ]
 
+    has_service_info = False
+
+    # Check agent response
     text_lower = response_text.lower()
     has_service_info = any(indicator in text_lower for indicator in service_indicators)
 
-    # Trigger every 3-4 turns OR when we detect service configuration
+    # Also check conversation history if provided
+    if not has_service_info and conversation_history:
+        # Check user messages for service mentions
+        for msg in conversation_history:
+            if msg.get("role") == "user":
+                msg_lower = msg.get("content", "").lower()
+                if any(indicator in msg_lower for indicator in service_indicators):
+                    has_service_info = True
+                    break
+
+    # Trigger every 3 turns OR when we detect service configuration
     should_trigger = (turn_count > 0 and turn_count % 3 == 0) or has_service_info
 
     if should_trigger:
