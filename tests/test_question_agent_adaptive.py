@@ -144,3 +144,74 @@ def test_agent_instructions_include_numbered_options():
     assert "QA/Staging" in source
     assert "Zone-redundant" in source
     assert "Region-redundant" in source
+
+
+def test_agent_instructions_include_architecture_based_questioning():
+    """Verify that agent instructions include architecture-based questioning guidance."""
+    from src.agents.question_agent import create_question_agent
+    import inspect
+
+    # Mock client
+    class MockClient:
+        pass
+
+    mock_client = MockClient()
+    agent = create_question_agent(mock_client)
+
+    # Get instructions from the function source
+    source = inspect.getsource(create_question_agent)
+
+    # Check for architecture-based questioning section
+    assert "ARCHITECTURE-BASED QUESTIONING" in source
+    assert "recommended Azure architecture" in source or "recommended architecture" in source
+    
+    # Check for instructions to search for architectures
+    assert "microsoft_docs_search to look up" in source or "microsoft_docs_search to find" in source
+    assert "reference architecture" in source or "Azure Well-Architected Framework" in source
+    
+    # Check for architecture-specific questions examples
+    assert "private networking" in source or "VNet integration" in source
+    assert "Application Gateway" in source or "application gateway" in source
+    
+    # Check for security-related architecture questions
+    assert "WAF" in source or "Web Application Firewall" in source
+    assert "private endpoints" in source
+    
+    # Check that architecture components are included in completion criteria
+    assert "Architecture components" in source or "architecture components" in source
+    
+    # Verify example shows architecture in requirements
+    assert "Architecture:" in source  # Should be in the example JSON
+
+
+def test_parse_completion_with_architecture_components():
+    """Should extract requirements including architecture components."""
+    response = """```json
+{
+  "requirements": "Workload: e-commerce web application; Region: East US; Environment: Production; Availability: High availability with zone redundancy; Architecture: Private VNet with Application Gateway and WAF, private endpoints for database; Services: App Service (P1v3), Azure SQL Database; Scale: 10,000 daily users",
+  "done": true
+}
+```"""
+
+    done, requirements = parse_question_completion(response)
+
+    assert done is True
+    assert "Architecture:" in requirements or "architecture" in requirements.lower()
+    assert "Application Gateway" in requirements or "application gateway" in requirements.lower()
+    assert "private" in requirements.lower()
+
+
+def test_parse_completion_with_networking_requirements():
+    """Should handle networking and gateway requirements in the summary."""
+    response = """```json
+{
+  "requirements": "Workload: API backend; Region: West Europe; Environment: Production; Availability: Zone-redundant; Architecture: Private networking with VNet integration, API Management gateway, private endpoints; Services: Azure Functions Premium, Azure SQL Database, API Management; Scale: 5000 requests/sec peak",
+  "done": true
+}
+```"""
+
+    done, requirements = parse_question_completion(response)
+
+    assert done is True
+    assert "Private networking" in requirements or "private networking" in requirements.lower()
+    assert "API Management" in requirements or "api management" in requirements.lower()
