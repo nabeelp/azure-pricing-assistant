@@ -346,8 +346,8 @@ Remember the schema:
 
         logger.info(f"BOM agent response: {response_text[:200]}...")
 
-        # Parse BOM response
-        new_bom_items = parse_bom_response(response_text)
+        # Parse BOM response (allow empty arrays in incremental mode)
+        new_bom_items = parse_bom_response(response_text, allow_empty=True)
 
         # Merge with existing BOM (update or append)
         merged_bom = _merge_bom_items(existing_bom, new_bom_items)
