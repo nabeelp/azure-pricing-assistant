@@ -28,8 +28,20 @@ async def run_question_turn(
     session_store: InMemorySessionStore,
     session_id: str,
     user_message: str,
+    enable_incremental_bom: bool = True,
 ) -> Dict[str, Any]:
-    """Run a single question-agent turn and persist thread/history."""
+    """Run a single question-agent turn and persist thread/history.
+    
+    Args:
+        client: Azure AI Agent client
+        session_store: Session store
+        session_id: Session identifier
+        user_message: User's message
+        enable_incremental_bom: Whether to trigger incremental BOM updates (default: True)
+    
+    Returns:
+        Dict with response, is_done, requirements_summary, history, and optional bom_items
+    """
     question_agent = create_question_agent(client)
 
     session_data = session_store.get(session_id)
@@ -60,12 +72,40 @@ async def run_question_turn(
 
     is_done, requirements_summary = parse_question_completion(response_text)
 
-    return {
+    result = {
         "response": response_text,
         "is_done": is_done,
         "requirements_summary": requirements_summary,
         "history": session_data.history,
     }
+    
+    # Trigger incremental BOM update if enabled and conditions are met
+    if enable_incremental_bom and should_trigger_bom_update(response_text, session_data.turn_count):
+        logger.info(f"Triggering incremental BOM update for session {session_id}")
+        
+        # Build recent context from last few exchanges
+        recent_history = session_data.history[-6:] if len(session_data.history) > 6 else session_data.history
+        recent_context = "\n".join(
+            f"{msg['role']}: {msg['content']}" 
+            for msg in recent_history
+        )
+        
+        # Run BOM update in background
+        bom_result = await run_incremental_bom_update(
+            client, 
+            session_store, 
+            session_id, 
+            recent_context
+        )
+        
+        result["bom_items"] = bom_result.get("bom_items", [])
+        result["bom_updated"] = True
+    else:
+        # Return current BOM items without update
+        result["bom_items"] = session_data.bom_items or []
+        result["bom_updated"] = False
+
+    return result
 
 
 def history_to_requirements(history: List[Dict[str, str]]) -> str:
@@ -250,6 +290,190 @@ async def run_bom_pricing_proposal_stream(
             message=f"Error: {str(e)}",
             data={"error": str(e)}
         )
+
+
+async def run_incremental_bom_update(
+    client: AzureAIAgentClient,
+    session_store: InMemorySessionStore,
+    session_id: str,
+    recent_context: str,
+) -> Dict[str, Any]:
+    """
+    Run BOM agent to build/update BOM items incrementally.
+    
+    Args:
+        client: Azure AI Agent client
+        session_store: Session store for persisting BOM items
+        session_id: Current session ID
+        recent_context: Recent conversation context to analyze
+        
+    Returns:
+        Dict with new/updated BOM items
+    """
+    from src.agents.bom_agent import parse_bom_response
+    
+    session_data = session_store.get(session_id)
+    if not session_data:
+        logger.warning(f"No session data found for {session_id}")
+        return {"bom_items": [], "error": "No session found"}
+    
+    # Create BOM agent
+    bom_agent = create_bom_agent(client)
+    thread = bom_agent.get_new_thread()
+    
+    # Build prompt for incremental BOM update
+    existing_bom = session_data.bom_items or []
+    prompt = f"""Based on the following conversation context, analyze and create BOM items for any Azure services discussed.
+
+EXISTING BOM ITEMS:
+{json.dumps(existing_bom, indent=2) if existing_bom else "None yet"}
+
+RECENT CONVERSATION CONTEXT:
+{recent_context}
+
+INSTRUCTIONS:
+- If this is a new service/component not in the existing BOM, create a new BOM item for it
+- If this updates an existing service (e.g., changing SKU), create the updated BOM item
+- Only create BOM items for services that have enough information (service type, region, scale)
+- Return ONLY the new or updated BOM items as a JSON array
+- If no new BOM items can be created yet, return an empty array: []
+
+Remember the schema:
+[
+  {{
+    "serviceName": "Service Name",
+    "sku": "SKU",
+    "quantity": 1,
+    "region": "Region Name",
+    "armRegionName": "regioncode",
+    "hours_per_month": 730
+  }}
+]"""
+    
+    # Run BOM agent
+    response_text = ""
+    try:
+        async for update in bom_agent.run_stream(prompt, thread=thread):
+            if update.text:
+                response_text += update.text
+        
+        logger.info(f"BOM agent response: {response_text[:200]}...")
+        
+        # Parse BOM response
+        new_bom_items = parse_bom_response(response_text)
+        
+        # Merge with existing BOM (update or append)
+        merged_bom = _merge_bom_items(existing_bom, new_bom_items)
+        
+        # Update session
+        session_data.bom_items = merged_bom
+        session_store.set(session_id, session_data)
+        
+        logger.info(f"Updated BOM: {len(merged_bom)} total items")
+        
+        return {
+            "bom_items": merged_bom,
+            "new_items": new_bom_items,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in incremental BOM update: {e}")
+        return {
+            "bom_items": existing_bom,
+            "error": str(e)
+        }
+
+
+def _merge_bom_items(
+    existing: List[Dict[str, Any]], 
+    new: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """
+    Merge new BOM items with existing ones.
+    
+    If a new item matches an existing one (same serviceName and region),
+    update the existing item. Otherwise, append the new item.
+    
+    Args:
+        existing: Existing BOM items
+        new: New BOM items to merge
+        
+    Returns:
+        Merged list of BOM items
+    """
+    if not new:
+        return existing
+    
+    # Create a copy of existing items
+    merged = list(existing)
+    
+    for new_item in new:
+        # Find matching item (same service and region)
+        match_idx = None
+        for idx, existing_item in enumerate(merged):
+            if (existing_item.get("serviceName") == new_item.get("serviceName") and
+                existing_item.get("region") == new_item.get("region")):
+                match_idx = idx
+                break
+        
+        if match_idx is not None:
+            # Update existing item
+            logger.info(
+                f"Updating BOM item: {new_item.get('serviceName')} "
+                f"in {new_item.get('region')}"
+            )
+            merged[match_idx] = new_item
+        else:
+            # Add new item
+            logger.info(
+                f"Adding BOM item: {new_item.get('serviceName')} "
+                f"in {new_item.get('region')}"
+            )
+            merged.append(new_item)
+    
+    return merged
+
+
+def should_trigger_bom_update(response_text: str, turn_count: int) -> bool:
+    """
+    Determine if the question agent's response indicates enough info for BOM update.
+    
+    Triggers BOM update when:
+    - User has provided service details (mentions specific Azure services)
+    - User has specified region and scale
+    - Every 3-4 turns to catch accumulated information
+    - When conversation is marked as done
+    
+    Args:
+        response_text: Question agent's response
+        turn_count: Current turn count
+        
+    Returns:
+        True if BOM should be updated
+    """
+    # Check if done
+    is_done, _ = parse_question_completion(response_text)
+    if is_done:
+        return True
+    
+    # Check for service/configuration mentions (indicators of sufficient info)
+    service_indicators = [
+        "app service", "sql", "database", "storage", "virtual machine", 
+        "vm", "kubernetes", "aks", "function", "cosmos", "redis",
+        "service bus", "event hub", "machine learning", "synapse",
+        "sku", "tier", "region", "scale"
+    ]
+    
+    text_lower = response_text.lower()
+    has_service_info = any(indicator in text_lower for indicator in service_indicators)
+    
+    # Trigger every 3-4 turns OR when we detect service configuration
+    should_trigger = (turn_count > 0 and turn_count % 3 == 0) or has_service_info
+    
+    if should_trigger:
+        logger.info(f"Triggering BOM update at turn {turn_count}, has_service_info={has_service_info}")
+    
+    return should_trigger
 
 
 def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:

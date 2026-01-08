@@ -29,7 +29,7 @@ class WebHandlers:
             message: User message
 
         Returns:
-            Dictionary with response, is_done, requirements_summary, and optional error
+            Dictionary with response, is_done, requirements_summary, bom_items, and optional error
         """
         result = await self.interface.chat_turn(session_id, message)
 
@@ -43,6 +43,8 @@ class WebHandlers:
             "response": response,
             "is_done": result.get("is_done", False),
             "requirements_summary": result.get("requirements_summary"),
+            "bom_items": result.get("bom_items", []),
+            "bom_updated": result.get("bom_updated", False),
             "error": result.get("error"),
         }
 
@@ -126,3 +128,16 @@ class WebHandlers:
         """
         history = await self.interface.get_session_history(session_id)
         return {"history": history}
+
+    async def handle_get_bom(self, session_id: str) -> Dict[str, Any]:
+        """
+        Handle BOM retrieval endpoint.
+
+        Args:
+            session_id: Unique session identifier
+
+        Returns:
+            Dictionary with current BOM items
+        """
+        bom_items = await self.interface.get_bom_items(session_id)
+        return {"bom_items": bom_items}

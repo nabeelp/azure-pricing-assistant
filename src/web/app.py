@@ -137,6 +137,21 @@ def history():
         return jsonify({'error': str(e), 'history': []}), 500
 
 
+@app.route('/api/bom', methods=['GET'])
+def get_bom():
+    """Get current BOM items for the session."""
+    session_id = session.get('session_id')
+    
+    if not session_id:
+        return jsonify({'error': 'No active session', 'bom_items': []}), 400
+    
+    try:
+        result = run_coroutine(handlers.handle_get_bom(session_id))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e), 'bom_items': []}), 500
+
+
 @app.route('/health')
 def health():
     """Health check endpoint."""

@@ -67,4 +67,10 @@ class SessionData:
     thread: Any
     history: List[dict]
     turn_count: int = 0  # Track conversation turns for 20-turn limit
+    bom_items: List[Dict[str, Any]] = None  # Incremental BOM items built during conversation
+    
+    def __post_init__(self):
+        """Initialize mutable default values."""
+        if self.bom_items is None:
+            self.bom_items = []
 
