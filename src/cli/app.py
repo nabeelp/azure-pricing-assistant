@@ -1,6 +1,8 @@
 """Azure Pricing Assistant - CLI entry point."""
 
 import asyncio
+import logging
+import os
 
 from agent_framework.observability import get_tracer, setup_observability
 from opentelemetry.trace import SpanKind
@@ -134,7 +136,21 @@ def print_header(title: str) -> None:
 async def main() -> None:
     """Main entry point for CLI."""
     load_environment()
-    setup_logging(name="pricing_assistant_cli", service_name="azure-pricing-assistant-cli")
+
+    # Resolve desired log level from environment (default INFO)
+    level_name = os.getenv("APP_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    # Configure logging with selected level
+    setup_logging(
+        name="pricing_assistant_cli",
+        level=level,
+        service_name="azure-pricing-assistant-cli",
+    )
+
+    # Quiet noisy third-party loggers
+    for noisy in ("opentelemetry", "azure", "agent_framework"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     setup_observability()
 
     print("Azure Pricing Assistant")

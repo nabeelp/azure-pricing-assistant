@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import logging
 from flask import Flask, render_template, request, jsonify, session, Response
 
 from src.core.config import get_flask_secret, load_environment
@@ -14,7 +15,21 @@ from src.web.handlers import WebHandlers
 
 # Load environment and configure Flask
 load_environment()
-setup_logging(name="pricing_assistant_web", service_name="azure-pricing-assistant-web")
+
+# Resolve desired log level from environment (default INFO)
+_level_name = os.getenv("APP_LOG_LEVEL", "INFO").upper()
+_level = getattr(logging, _level_name, logging.INFO)
+
+# Configure logging with selected level
+setup_logging(
+    name="pricing_assistant_web",
+    level=_level,
+    service_name="azure-pricing-assistant-web",
+)
+
+# Quiet noisy third-party loggers (access logs, SDKs, telemetry)
+for _noisy in ("werkzeug", "opentelemetry", "azure", "agent_framework"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # Resolve template directory
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
