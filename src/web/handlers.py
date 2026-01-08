@@ -34,7 +34,7 @@ class WebHandlers:
         result = await self.interface.chat_turn(session_id, message)
 
         # Filter out JSON blocks from the response display
-        response = result.get("response", "")
+        response = result.get("response") or ""
         if response.strip().startswith("{"):
             # This is likely the JSON completion message - don't show it
             response = ""
