@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 
-from agent_framework.observability import get_tracer, setup_observability
+from agent_framework.observability import get_tracer, configure_otel_providers
 from opentelemetry.trace import SpanKind
 
 from src.core.config import load_environment
@@ -165,10 +165,8 @@ async def main() -> None:
         service_name="azure-pricing-assistant-cli",
     )
 
-    # Quiet noisy third-party loggers
-    for noisy in ("azure", "agent_framework"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
-    setup_observability()
+    # Configure OpenTelemetry providers for observability
+    configure_otel_providers()
 
     print("Azure Pricing Assistant")
     print("=" * 60)

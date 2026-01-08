@@ -27,10 +27,6 @@ setup_logging(
     service_name="azure-pricing-assistant-web",
 )
 
-# Quiet noisy third-party loggers (access logs, SDKs, telemetry)
-for _noisy in ("werkzeug", "azure", "agent_framework"):
-    logging.getLogger(_noisy).setLevel(logging.WARNING)
-
 # Resolve template directory
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
