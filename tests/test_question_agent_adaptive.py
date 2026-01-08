@@ -133,7 +133,11 @@ def test_agent_instructions_include_numbered_options():
     assert "NUMBERED OPTIONS FOR EASY SELECTION" in source
     assert "Users can respond with just the number" in source
     assert "OR with full text" in source
-    assert "1. [First option]" in source or "1. " in source
+    assert "1. " in source
+
+    # Check for proper formatting instructions (each option on new line)
+    assert "Each option MUST be on a NEW LINE" in source or "each on new line" in source
+    assert "each on its own line" in source or "NEW LINE for readability" in source
 
     # Check for examples in adaptive sequence
     assert "Development/Testing" in source
