@@ -165,7 +165,8 @@ async def main() -> None:
         service_name="azure-pricing-assistant-cli",
     )
 
-    # Configure OpenTelemetry providers for observability
+    # Configure OpenTelemetry providers (tracing, metrics, logs)
+    # This replaces the deprecated setup_observability() function
     configure_otel_providers()
 
     print("Azure Pricing Assistant")
