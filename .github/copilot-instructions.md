@@ -1,5 +1,10 @@
 # GitHub Copilot Instructions for Azure Pricing Assistant
 
+## Project Overview
+The **Azure Pricing Assistant** is an AI-powered tool that automates Azure solution design and cost estimation. It uses a multi-agent architecture (Question → BOM → Pricing → Proposal) built on the Microsoft Agent Framework to gather requirements, generate Bills of Materials, calculate real-time pricing, and create professional proposals.
+
+**Tech Stack**: Python 3.10+, Microsoft Agent Framework, Azure AI Foundry, Azure Pricing MCP, OpenTelemetry
+
 ## Purpose
 Keep Copilot completions aligned with the PRD, schemas, orchestration rules, and local/dev workflows for the Azure Pricing Assistant multi-agent app.
 
@@ -63,3 +68,95 @@ Keep Copilot completions aligned with the PRD, schemas, orchestration rules, and
 - Letting the Question Agent emit prose or a legacy phrase instead of the `{ "done": true }` JSON envelope.
 - Drifting from schemas (missing armRegionName, wrong totals, missing pricing_date/currency).
 - Not awaiting async tool calls or handling tool failures with $0.00 + error notes.
+
+## Project Structure
+```
+azure-pricing-assistant/
+├── src/
+│   ├── agents/           # AI agents (question, bom, pricing, proposal)
+│   ├── core/             # Orchestration, config, session management
+│   ├── interfaces/       # Abstract base classes & handlers
+│   ├── web/              # Flask web application
+│   ├── cli/              # Command-line interface
+│   └── shared/           # Logging, errors, utilities
+├── tests/                # Unit, integration, and E2E tests
+├── specs/                # PRD.md (requirements document)
+├── infra/                # Azure Bicep templates for deployment
+├── .github/              # This file and CI configuration
+└── pyproject.toml        # Python project metadata
+```
+
+## Build, Test, and Lint Commands
+All commands should be run from the repository root:
+
+### Installation
+```bash
+# Development (recommended - includes all dependencies)
+pip install -e .[dev]
+
+# Web interface only
+pip install -e .[web]
+
+# CLI interface only
+pip install -e .[cli]
+```
+
+### Testing
+```bash
+# Unit tests only (no Azure credentials required)
+pytest tests/ -k "not integration and not e2e" -v
+
+# Run specific test file
+pytest tests/test_bom_agent.py -v
+
+# BOM integration tests (requires Azure credentials)
+RUN_LIVE_BOM_INTEGRATION=1 pytest tests/test_bom_integration.py -v -s
+
+# Full E2E tests (requires Azure credentials + Azure Pricing MCP server)
+RUN_LIVE_E2E=1 pytest tests/test_end_to_end_workflow.py -v -s
+
+# All tests with coverage
+pytest tests/ --cov=src --cov-report=html -v
+```
+
+### Linting and Formatting
+```bash
+# Format code with black (line length 100)
+black src/ tests/ --line-length 100
+
+# Type checking with mypy
+mypy src/
+
+# Check formatting without changing files
+black src/ tests/ --check --line-length 100
+```
+
+### Running the Application
+```bash
+# Web interface (default: http://localhost:8000)
+python -m src.web.app
+
+# CLI interface
+python -m src.cli.app
+```
+
+## Required Environment Variables
+Create a `.env` file (copy from `.env.example`):
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `AZURE_AI_PROJECT_ENDPOINT` | Yes | — | Azure AI Foundry project endpoint |
+| `AZURE_PRICING_MCP_URL` | No | http://localhost:8080/mcp | Azure Pricing MCP server endpoint |
+| `FLASK_SECRET_KEY` | Yes (web) | — | Flask session secret key |
+| `PORT` | No | 8000 | Local web server port |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | No | gpt-4o-mini | Azure AI model deployment |
+
+## Contributing Guidelines
+1. **Read specs/PRD.md first** - This is the authoritative source for requirements, schemas, and agent behavior
+2. **Follow existing patterns** - Match coding style, structure, and conventions in the codebase
+3. **Add tests** - All new features require unit tests; integration tests when interacting with external services
+4. **Update schemas** - If changing data structures, update PRD first, then code, then tests
+5. **Run tests before PR** - Ensure all unit tests pass before submitting changes
+6. **Format code** - Run `black` before committing (line length 100)
+7. **Document changes** - Update relevant README or documentation files
+8. **Keep changes minimal** - Make surgical, focused changes; avoid unnecessary refactoring
