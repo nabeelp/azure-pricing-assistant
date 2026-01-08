@@ -29,13 +29,20 @@ class WebHandlers:
             message: User message
 
         Returns:
-            Dictionary with response, is_done, and optional error
+            Dictionary with response, is_done, requirements_summary, and optional error
         """
         result = await self.interface.chat_turn(session_id, message)
 
+        # Filter out JSON blocks from the response display
+        response = result.get("response", "")
+        if response.strip().startswith("{"):
+            # This is likely the JSON completion message - don't show it
+            response = ""
+
         return {
-            "response": result.get("response", ""),
+            "response": response,
             "is_done": result.get("is_done", False),
+            "requirements_summary": result.get("requirements_summary"),
             "error": result.get("error"),
         }
 

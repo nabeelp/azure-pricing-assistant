@@ -19,6 +19,7 @@ from src.cli.prompts import (
     print_agent_start,
     print_agent_progress,
     print_agent_complete,
+    print_requirements_summary,
 )
 from src.shared.async_utils import create_event_loop
 from src.shared.errors import WorkflowError
@@ -63,8 +64,24 @@ async def run_cli_workflow() -> None:
         if turn_result.get("is_done", False):
             is_done = True
             requirements_summary = turn_result.get("requirements_summary", turn_result["response"])
-            print_completion_message()
-            break
+            
+            # Show friendly summary instead of raw JSON
+            print_requirements_summary(requirements_summary)
+            
+            # Ask if ready to proceed
+            while True:
+                proceed_input = input("\nReady to generate proposal? (yes/no): ").strip().lower()
+                if proceed_input in ("yes", "y"):
+                    break
+                elif proceed_input in ("no", "n"):
+                    print("\nPlease continue with additional requirements or clarifications.\n")
+                    is_done = False
+                    break
+                else:
+                    print("Please enter 'yes' or 'no'.")
+            
+            if is_done:
+                break
     else:
         raise WorkflowError(
             "Conversation exceeded 20 turns without completion. "

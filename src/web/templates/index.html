@@ -324,13 +324,15 @@
                 if (data.error) {
                     addMessage('assistant', `Error: ${data.error}`);
                 } else {
-                    addMessage('assistant', data.response);
+                    // Only show response if it's not empty (filters out JSON)
+                    if (data.response && data.response.trim()) {
+                        addMessage('assistant', data.response);
+                    }
                     
                     if (data.is_done) {
-                        isDone = true;
-                        document.getElementById('doneBanner').classList.add('active');
-                        document.getElementById('sendBtn').style.display = 'none';
-                        document.getElementById('generateBtn').style.display = 'block';
+                        // Show friendly summary with confirmation
+                        const summary = data.requirements_summary || 'Requirements gathering complete';
+                        displayRequirementsSummary(summary);
                     }
                 }
             } catch (error) {
@@ -339,6 +341,33 @@
                 sendBtn.disabled = false;
                 sendBtn.textContent = 'Send';
             }
+        }
+        
+        function displayRequirementsSummary(summary) {
+            const chatContainer = document.getElementById('chatContainer');
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'message assistant';
+            
+            const summaryContent = document.createElement('div');
+            summaryContent.className = 'message-content';
+            summaryContent.style.borderLeft = '4px solid #4caf50';
+            summaryContent.innerHTML = `
+                <strong>📋 Requirements Summary:</strong><br><br>
+                ${summary.replace(/\\n/g, '<br>')}<br><br>
+                <em>Ready to proceed with proposal generation?</em>
+            `;
+            
+            summaryDiv.appendChild(summaryContent);
+            chatContainer.appendChild(summaryDiv);
+            
+            // Show buttons for confirmation
+            isDone = true;
+            document.getElementById('doneBanner').classList.add('active');
+            document.getElementById('sendBtn').style.display = 'none';
+            document.getElementById('generateBtn').style.display = 'block';
+            
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
         async function generateProposal() {

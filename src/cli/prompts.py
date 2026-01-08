@@ -57,3 +57,12 @@ def print_agent_complete(agent_name: str) -> None:
     """Print agent completion message."""
     agent_display = agent_name.replace("_", " ").title()
     print(f"\n✅ {agent_display} complete\n", flush=True)
+
+
+def print_requirements_summary(summary: str) -> None:
+    """Display a friendly summary of gathered requirements."""
+    print("\n" + "=" * 60)
+    print("📋 GATHERED REQUIREMENTS SUMMARY")
+    print("=" * 60)
+    print(f"\n{summary}\n")
+    print("=" * 60)
