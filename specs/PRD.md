@@ -11,10 +11,10 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 - **Up-to-Date Knowledge**: Utilize Microsoft Learn documentation to ensure recommendations reflect the latest Azure capabilities.
 
 ## 3. User Workflow
-1.  **Discovery**: The user initiates a chat session. The **Question Agent** asks adaptive questions to understand the workload, scale, preferred services, and region.
-2.  **Handoff**: Once sufficient information is gathered (signaled by a `done: true` completion flag from the Question Agent), the system transitions to the processing workflow.
-3.  **BOM Generation**: The **BOM Agent** analyzes the requirements and produces a structured Bill of Materials (JSON).
-4.  **Pricing**: The **Pricing Agent** takes the BOM, queries the Azure Retail Prices API for each item, and calculates monthly costs.
+1.  **Discovery with Incremental BOM Building**: The user initiates a chat session. The **Question Agent** asks adaptive questions to understand the workload, scale, preferred services, and region. **Simultaneously**, the **BOM Agent** is invoked incrementally as sufficient information becomes available for each service component, building the BOM progressively during the conversation.
+2.  **Handoff**: Once sufficient information is gathered (signaled by a `done: true` completion flag from the Question Agent), the system transitions to the final processing workflow with a complete or near-complete BOM.
+3.  **BOM Finalization** (if needed): The **BOM Agent** performs a final review and completes any remaining BOM items.
+4.  **Pricing**: The **Pricing Agent** takes the BOM (built incrementally or finalized), queries the Azure Retail Prices API for each item, and calculates monthly costs.
 5.  **Proposal**: The **Proposal Agent** synthesizes the requirements, BOM, and pricing into a comprehensive Markdown proposal.
 
 ## 4. Functional Requirements
@@ -33,12 +33,22 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 
 ### 4.2. BOM Agent (Service Mapping)
 -   **Role**: Infrastructure Designer.
--   **Input**: Conversation history and requirements summary.
+-   **Input**: Conversation history and requirements summary (can be partial during incremental building).
+-   **Operation Modes**:
+    -   **Incremental Mode**: Invoked during conversation when Question Agent detects sufficient information for a service component. Analyzes recent conversation context (last 6 exchanges) to identify new services or updates to existing ones.
+    -   **Final Mode**: Invoked at completion to review and finalize the complete BOM.
 -   **Capabilities**:
     -   Map workloads to appropriate Azure Services (e.g., Web App -> Azure App Service).
     -   Select SKUs based on scale (Small/Basic, Medium/Standard, Large/Premium).
     -   Use `microsoft_docs_search` MCP tool to validate Service Names and SKU identifiers.
--   **Output**: Valid JSON array of BOM items.
+    -   Use `azure_sku_discovery` from Azure Pricing MCP for intelligent SKU matching.
+    -   **Update existing BOM items** when requirements change (e.g., tier upgrade from Basic to Premium).
+    -   **Merge new items** with existing BOM, matching on `serviceName` + `region` for updates.
+-   **Trigger Conditions** (Incremental Mode):
+    -   Service or configuration keywords detected (e.g., "app service", "database", "sku", "tier")
+    -   Every 3 conversation turns to capture accumulated information
+    -   Conversation completion (`done: true`)
+-   **Output**: Valid JSON array of BOM items (new or updated items in incremental mode, complete BOM in final mode).
     -   Schema: `[{ "serviceName": "...", "sku": "...", "quantity": 1, "region": "...", "armRegionName": "...", "hours_per_month": 730 }]`
 
 ### 4.3. Pricing Agent (Cost Estimation)
@@ -120,14 +130,39 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **Observability**: OpenTelemetry with Aspire Dashboard integration.
 
 ### 5.2. Orchestration
-The application uses a two-stage orchestration pattern:
+The application uses a hybrid orchestration pattern combining incremental and sequential execution:
 
-1.  **Discovery Stage**: Interactive chat loop managed by `ChatAgent` with thread-based conversation. Terminates when the Question Agent emits `done: true` in its final JSON response.
-2.  **Processing Stage**: `SequentialBuilder` pipeline executing agents in order: `BOM Agent` → `Pricing Agent` → `Proposal Agent`.
+1.  **Discovery Stage with Incremental BOM Building**: Interactive chat loop managed by `ChatAgent` with thread-based conversation. During this stage:
+    -   Question Agent conducts adaptive Q&A
+    -   BOM Agent is invoked incrementally when trigger conditions are met
+    -   BOM items are accumulated in session state (`SessionData.bom_items`)
+    -   Stage terminates when the Question Agent emits `done: true` in its final JSON response
+2.  **Processing Stage**: `SequentialBuilder` pipeline executing agents in order: `BOM Agent (final review)` → `Pricing Agent` → `Proposal Agent`.
+    -   BOM Agent performs final validation and completion of BOM (may use incrementally built items)
+    -   Pricing Agent processes the complete BOM
+    -   Proposal Agent generates final output
 
 ### 5.3. Data Flow
+
+**Discovery Stage (Incremental)**:
 ```
-User Input → Question Agent → Requirements Text → BOM Agent → BOM JSON → Pricing Agent → Pricing JSON → Proposal Agent → Proposal.md
+User Input → Question Agent → Trigger Check →
+  [If Triggered]:
+    Recent Context (6 exchanges) → BOM Agent (Incremental) → 
+    Parse & Validate → Merge with Session BOM → Store in SessionData.bom_items
+  → Return Response + BOM Items to UI
+```
+
+**Processing Stage (Sequential)**:
+```
+Session BOM Items + Requirements → BOM Agent (Final) → Complete BOM JSON → 
+Pricing Agent → Pricing JSON → Proposal Agent → Proposal.md
+```
+
+**Complete Flow**:
+```
+[Discovery: User ↔ Question Agent + Incremental BOM Building] → 
+[Processing: BOM Finalization → Pricing → Proposal]
 ```
 
 ### 5.4. Agent Implementation
@@ -160,12 +195,16 @@ async with DefaultAzureCredential() as credential:
 -   **Observability**: OpenTelemetry tracing enabled for monitoring and debugging.
 -   **Testing**: Run end-to-end agent workflow tests, verify Question Agent emits `done: true` with a structured requirements summary, validate BOM JSON against schema, and test pricing agent with live MCP server at `http://localhost:8080/mcp`.
 
-# 7. Planned Enhancements
+# 7. Enhancements Completed
+-   ✅ **Progressive BOM Disclosure**: Users can now see BOM items as they are identified during the conversation (Web UI displays in real-time side panel; CLI builds in background).
+-   ✅ **Incremental BOM Building**: BOM is constructed progressively during discovery stage with intelligent triggering and merge logic.
+
+# 8. Planned Enhancements
 -   **Tune Questioning Strategy**: Improve adaptive questioning based on workload type and experience level.
 -   **Observability Enhancements**: Add more detailed tracing and logging for each step, with log level control.
 -   **Progress Feedback**: Provide real-time progress updates during processing stage.
 -   **Improve Performance**: Optimize agent response times and MCP tool calls.
--   **Progressive Disclosure**: Allow users to see intermediate outputs (BOM, pricing) before final proposal generation. Use async updates to improve responsiveness.
+-   **Incremental Pricing**: Extend incremental approach to pricing calculation during discovery.
 -   **Web Interface**: Allow for retrieval of previous proposals.
 -   **Price Citations**: Include links to Azure pricing pages in the proposal for transparency.
 -   **Testing**: Implement complete unit and integration tests for each agent and workflow stage.
