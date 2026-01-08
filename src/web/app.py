@@ -6,6 +6,7 @@ import os
 import logging
 from flask import Flask, render_template, request, jsonify, session, Response
 
+from agent_framework.observability import configure_otel_providers
 from src.core.config import get_flask_secret, load_environment
 from src.core.session import InMemorySessionStore
 from src.shared.async_utils import run_coroutine
@@ -27,9 +28,9 @@ setup_logging(
     service_name="azure-pricing-assistant-web",
 )
 
-# Quiet noisy third-party loggers (access logs, SDKs, telemetry)
-for _noisy in ("werkzeug", "opentelemetry", "azure", "agent_framework"):
-    logging.getLogger(_noisy).setLevel(logging.WARNING)
+# Configure OpenTelemetry providers (tracing, metrics, logs)
+# This replaces the deprecated setup_observability() function
+configure_otel_providers()
 
 # Resolve template directory
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
