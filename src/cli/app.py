@@ -1,6 +1,8 @@
 """Azure Pricing Assistant - CLI entry point."""
 
 import asyncio
+import logging
+import os
 
 from agent_framework.observability import get_tracer, setup_observability
 from opentelemetry.trace import SpanKind
@@ -14,6 +16,10 @@ from src.cli.prompts import (
     print_final_message,
     print_proposal_header,
     print_workflow_start,
+    print_agent_start,
+    print_agent_progress,
+    print_agent_complete,
+    print_requirements_summary,
 )
 from src.shared.async_utils import create_event_loop
 from src.shared.errors import WorkflowError
@@ -58,8 +64,24 @@ async def run_cli_workflow() -> None:
         if turn_result.get("is_done", False):
             is_done = True
             requirements_summary = turn_result.get("requirements_summary", turn_result["response"])
-            print_completion_message()
-            break
+            
+            # Show friendly summary instead of raw JSON
+            print_requirements_summary(requirements_summary)
+            
+            # Ask if ready to proceed
+            while True:
+                proceed_input = input("\nReady to generate proposal? (yes/no): ").strip().lower()
+                if proceed_input in ("yes", "y"):
+                    break
+                elif proceed_input in ("no", "n"):
+                    print("\nPlease continue with additional requirements or clarifications.\n")
+                    is_done = False
+                    break
+                else:
+                    print("Please enter 'yes' or 'no'.")
+            
+            if is_done:
+                break
     else:
         raise WorkflowError(
             "Conversation exceeded 20 turns without completion. "
@@ -75,18 +97,49 @@ async def run_cli_workflow() -> None:
     if not requirements_summary:
         raise WorkflowError("Agent did not provide requirements summary")
 
-    # Generate proposal workflow
+    # Generate proposal workflow with progress
     print_header("Generating Proposal")
 
-    proposal_result = await interface.generate_proposal(session_id)
+    bom_text = ""
+    pricing_text = ""
+    proposal_text = ""
+    current_agent = ""
 
-    if "error" in proposal_result:
-        print_error(proposal_result["error"])
-        return
+    async for event in interface.generate_proposal_stream(session_id):
+        if "error" in event:
+            print_error(event["error"])
+            return
+        
+        event_type = event.get("event_type")
+        agent_name = event.get("agent_name")
+        message = event.get("message")
+        data = event.get("data")
+        
+        if event_type == "agent_start":
+            if current_agent:
+                print_agent_complete(current_agent)
+            current_agent = agent_name
+            print_agent_start(agent_name)
+        
+        elif event_type == "agent_progress":
+            if message:
+                print_agent_progress(message)
+        
+        elif event_type == "workflow_complete":
+            if current_agent:
+                print_agent_complete(current_agent)
+            
+            bom_text = data.get("bom", "")
+            pricing_text = data.get("pricing", "")
+            proposal_text = data.get("proposal", "")
+        
+        elif event_type == "error":
+            print_error(message or "Unknown error")
+            return
 
     # Display final proposal
     print_proposal_header()
-    print(proposal_result.get("proposal", ""))
+    print(proposal_text)
     print_final_message()
 
 
@@ -100,7 +153,21 @@ def print_header(title: str) -> None:
 async def main() -> None:
     """Main entry point for CLI."""
     load_environment()
-    setup_logging(name="pricing_assistant_cli", service_name="azure-pricing-assistant-cli")
+
+    # Resolve desired log level from environment (default INFO)
+    level_name = os.getenv("APP_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    # Configure logging with selected level
+    setup_logging(
+        name="pricing_assistant_cli",
+        level=level,
+        service_name="azure-pricing-assistant-cli",
+    )
+
+    # Quiet noisy third-party loggers
+    for noisy in ("opentelemetry", "azure", "agent_framework"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     setup_observability()
 
     print("Azure Pricing Assistant")

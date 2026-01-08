@@ -177,6 +177,66 @@
             color: #666;
         }
 
+        .progress-indicator {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background: white;
+            border: 2px solid #e0e0e0;
+        }
+
+        .progress-step.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .progress-step.complete {
+            border-color: #4caf50;
+            background: #f0fff4;
+        }
+
+        .progress-icon {
+            font-size: 24px;
+        }
+
+        .progress-text {
+            flex: 1;
+        }
+
+        .progress-title {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .progress-status {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         .button-group {
             display: flex;
             gap: 12px;
@@ -264,13 +324,15 @@
                 if (data.error) {
                     addMessage('assistant', `Error: ${data.error}`);
                 } else {
-                    addMessage('assistant', data.response);
+                    // Only show response if it's not empty (filters out JSON)
+                    if (data.response && data.response.trim()) {
+                        addMessage('assistant', data.response);
+                    }
                     
                     if (data.is_done) {
-                        isDone = true;
-                        document.getElementById('doneBanner').classList.add('active');
-                        document.getElementById('sendBtn').style.display = 'none';
-                        document.getElementById('generateBtn').style.display = 'block';
+                        // Show friendly summary with confirmation
+                        const summary = data.requirements_summary || 'Requirements gathering complete';
+                        displayRequirementsSummary(summary);
                     }
                 }
             } catch (error) {
@@ -280,37 +342,154 @@
                 sendBtn.textContent = 'Send';
             }
         }
+        
+        function displayRequirementsSummary(summary) {
+            const chatContainer = document.getElementById('chatContainer');
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'message assistant';
+            
+            const summaryContent = document.createElement('div');
+            summaryContent.className = 'message-content';
+            summaryContent.style.borderLeft = '4px solid #4caf50';
+            summaryContent.innerHTML = `
+                <strong>📋 Requirements Summary:</strong><br><br>
+                ${summary.replace(/\\n/g, '<br>')}<br><br>
+                <em>Ready to proceed with proposal generation?</em>
+            `;
+            
+            summaryDiv.appendChild(summaryContent);
+            chatContainer.appendChild(summaryDiv);
+            
+            // Show buttons for confirmation
+            isDone = true;
+            document.getElementById('doneBanner').classList.add('active');
+            document.getElementById('sendBtn').style.display = 'none';
+            document.getElementById('generateBtn').style.display = 'block';
+            
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
 
         async function generateProposal() {
             const generateBtn = document.getElementById('generateBtn');
             generateBtn.disabled = true;
             generateBtn.textContent = 'Generating...';
             
-            // Show loading in proposal section
+            // Show proposal section with progress indicator
             document.getElementById('proposalSection').classList.add('active');
             document.getElementById('chatContainer').style.display = 'none';
-            document.getElementById('proposalContent').innerHTML = '<div class="loading">⏳ Generating your proposal... This may take a minute.</div>';
+            document.getElementById('proposalContent').innerHTML = `
+                <div class="progress-indicator" id="progressIndicator">
+                    <div class="progress-step" id="bomStep">
+                        <span class="progress-icon">📋</span>
+                        <div class="progress-text">
+                            <div class="progress-title">BOM Agent</div>
+                            <div class="progress-status">Waiting...</div>
+                        </div>
+                    </div>
+                    <div class="progress-step" id="pricingStep">
+                        <span class="progress-icon">💰</span>
+                        <div class="progress-text">
+                            <div class="progress-title">Pricing Agent</div>
+                            <div class="progress-status">Waiting...</div>
+                        </div>
+                    </div>
+                    <div class="progress-step" id="proposalStep">
+                        <span class="progress-icon">📄</span>
+                        <div class="progress-text">
+                            <div class="progress-title">Proposal Agent</div>
+                            <div class="progress-status">Waiting...</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="finalProposal" style="display: none;"></div>
+            `;
             
             try {
-                const response = await fetch('/api/generate-proposal', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
+                const eventSource = new EventSource('/api/generate-proposal-stream');
+                let proposalData = null;
+                
+                eventSource.addEventListener('message', (event) => {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.error) {
+                        eventSource.close();
+                        document.getElementById('proposalContent').innerHTML = `<div class="loading">❌ Error: ${data.error}</div>`;
+                        generateBtn.disabled = false;
+                        generateBtn.textContent = 'Generate Proposal';
+                        return;
+                    }
+                    
+                    const eventType = data.event_type;
+                    const agentName = data.agent_name;
+                    
+                    if (eventType === 'agent_start') {
+                        updateProgressStep(agentName, 'active', 'Running...');
+                    } else if (eventType === 'agent_progress') {
+                        // Optional: could show streaming text here
+                        // For now just keep the running indicator
+                    } else if (eventType === 'workflow_complete') {
+                        // Mark all complete
+                        updateProgressStep('bom_agent', 'complete', 'Complete ✓');
+                        updateProgressStep('pricing_agent', 'complete', 'Complete ✓');
+                        updateProgressStep('proposal_agent', 'complete', 'Complete ✓');
+                        
+                        // Show final proposal
+                        proposalData = data.data;
+                        setTimeout(() => {
+                            document.getElementById('progressIndicator').style.display = 'none';
+                            const finalDiv = document.getElementById('finalProposal');
+                            finalDiv.style.display = 'block';
+                            finalDiv.textContent = proposalData.proposal || 'No proposal generated';
+                        }, 500);
+                        
+                        eventSource.close();
+                        generateBtn.disabled = false;
+                        generateBtn.textContent = 'Generate Proposal';
                     }
                 });
                 
-                const data = await response.json();
+                eventSource.addEventListener('error', (error) => {
+                    console.error('EventSource error:', error);
+                    eventSource.close();
+                    document.getElementById('proposalContent').innerHTML = '<div class="loading">❌ Connection error. Please try again.</div>';
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = 'Generate Proposal';
+                });
                 
-                if (data.error) {
-                    document.getElementById('proposalContent').textContent = `Error: ${data.error}`;
-                } else {
-                    document.getElementById('proposalContent').textContent = data.proposal || 'No proposal generated';
-                }
             } catch (error) {
-                document.getElementById('proposalContent').textContent = `Error: ${error.message}`;
-            } finally {
+                document.getElementById('proposalContent').innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
                 generateBtn.disabled = false;
                 generateBtn.textContent = 'Generate Proposal';
+            }
+        }
+        
+        function updateProgressStep(agentName, status, statusText) {
+            let stepId;
+            if (agentName === 'bom_agent') {
+                stepId = 'bomStep';
+            } else if (agentName === 'pricing_agent') {
+                stepId = 'pricingStep';
+            } else if (agentName === 'proposal_agent') {
+                stepId = 'proposalStep';
+            } else {
+                return;
+            }
+            
+            const step = document.getElementById(stepId);
+            if (!step) return;
+            
+            // Update status class
+            step.className = `progress-step ${status}`;
+            
+            // Update status text
+            const statusDiv = step.querySelector('.progress-status');
+            if (statusDiv) {
+                if (status === 'active') {
+                    statusDiv.innerHTML = `<span class="spinner"></span> ${statusText}`;
+                } else {
+                    statusDiv.textContent = statusText;
+                }
             }
         }
 

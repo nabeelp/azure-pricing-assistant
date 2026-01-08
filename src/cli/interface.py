@@ -47,6 +47,34 @@ class CLIInterface(PricingInterface):
         async with self.context as ctx:
             return await self.handler.handle_proposal_generation(ctx, session_id)
 
+    async def generate_proposal_stream(self, session_id: str):
+        """
+        Generate proposal with streaming progress.
+        
+        Args:
+            session_id: Unique identifier for the chat session
+            
+        Yields:
+            Dict[str, Any] - Progress events
+        """
+        from src.core.orchestrator import history_to_requirements, run_bom_pricing_proposal_stream
+        
+        async with self.context as ctx:
+            session_data = self.context.session_store.get(session_id)
+            if not session_data:
+                yield {"error": "No active session found"}
+                return
+            
+            requirements = history_to_requirements(session_data.history)
+            
+            async for event in run_bom_pricing_proposal_stream(ctx.client, requirements):
+                yield {
+                    "event_type": event.event_type,
+                    "agent_name": event.agent_name,
+                    "message": event.message,
+                    "data": event.data
+                }
+
     async def reset_session(self, session_id: str) -> None:
         """
         Reset session state.

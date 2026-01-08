@@ -1,7 +1,10 @@
 """Flask web application for Azure Pricing Assistant."""
 
+import asyncio
+import json
 import os
-from flask import Flask, render_template, request, jsonify, session
+import logging
+from flask import Flask, render_template, request, jsonify, session, Response
 
 from src.core.config import get_flask_secret, load_environment
 from src.core.session import InMemorySessionStore
@@ -12,7 +15,21 @@ from src.web.handlers import WebHandlers
 
 # Load environment and configure Flask
 load_environment()
-setup_logging(name="pricing_assistant_web", service_name="azure-pricing-assistant-web")
+
+# Resolve desired log level from environment (default INFO)
+_level_name = os.getenv("APP_LOG_LEVEL", "INFO").upper()
+_level = getattr(logging, _level_name, logging.INFO)
+
+# Configure logging with selected level
+setup_logging(
+    name="pricing_assistant_web",
+    level=_level,
+    service_name="azure-pricing-assistant-web",
+)
+
+# Quiet noisy third-party loggers (access logs, SDKs, telemetry)
+for _noisy in ("werkzeug", "opentelemetry", "azure", "agent_framework"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # Resolve template directory
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -64,6 +81,35 @@ def generate():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/generate-proposal-stream', methods=['GET'])
+def generate_stream():
+    """Generate proposal with streaming progress (SSE)."""
+    session_id = session.get('session_id')
+    
+    if not session_id:
+        return jsonify({'error': 'No active session'}), 400
+    
+    def event_generator():
+        """Bridge async generator to sync generator for Flask."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            async_gen = handlers.handle_generate_proposal_stream(session_id)
+            
+            while True:
+                try:
+                    event = loop.run_until_complete(async_gen.__anext__())
+                    # Format as SSE
+                    yield f"data: {json.dumps(event)}\n\n"
+                except StopAsyncIteration:
+                    break
+        finally:
+            loop.close()
+    
+    return Response(event_generator(), mimetype='text/event-stream')
 
 
 @app.route('/api/reset', methods=['POST'])
