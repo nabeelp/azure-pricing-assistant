@@ -111,3 +111,32 @@ def test_json_without_code_block_fallback():
     assert done is True
     assert "Workload: web app" in requirements
     assert "Region: East US" in requirements
+
+
+def test_agent_instructions_include_numbered_options():
+    """Verify that agent instructions include numbered options guidance."""
+    from src.agents.question_agent import create_question_agent
+
+    # Mock client
+    class MockClient:
+        pass
+
+    mock_client = MockClient()
+    agent = create_question_agent(mock_client)
+
+    # Get instructions from the function source since agent doesn't expose them
+    import inspect
+
+    source = inspect.getsource(create_question_agent)
+
+    # Check for numbered options guidance
+    assert "NUMBERED OPTIONS FOR EASY SELECTION" in source
+    assert "Users can respond with just the number" in source
+    assert "OR with full text" in source
+    assert "1. [First option]" in source or "1. " in source
+
+    # Check for examples in adaptive sequence
+    assert "Development/Testing" in source
+    assert "QA/Staging" in source
+    assert "Zone-redundant" in source
+    assert "Region-redundant" in source
