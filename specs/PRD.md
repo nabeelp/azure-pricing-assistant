@@ -26,8 +26,10 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
     -   Conduct multi-turn conversation (max 20 turns).
     -   Adapt questions based on workload type (Web, DB, AI/ML, etc.).
     -   Use `microsoft_docs_search` MCP tool to verify service capabilities and region availability.
+    -   **Look up recommended Azure architectures** for the workload type and base questions on architectural patterns (e.g., Azure Well-Architected Framework, reference architectures).
+    -   **Ask about architecture components** such as private networking, Application Gateway, WAF, API Management, private endpoints, and other components typical of recommended architectures.
 -   **Output**: A JSON object wrapped in a ```json code block: `{ "requirements": "<summary>", "done": true }` (no extra text outside the JSON).
--   **Minimum Data Points**: Workload Type, Scale/Size, Specific Service(s), Deployment Region.
+-   **Minimum Data Points**: Workload Type, Scale/Size, Specific Service(s), Deployment Region, Architecture Components (networking, gateways, security features).
 
 ### 4.2. BOM Agent (Service Mapping)
 -   **Role**: Infrastructure Designer.
