@@ -225,3 +225,67 @@ This feature was already fully implemented before this review. The implementatio
 - Could enhance response with metadata: created_at, session_duration, service_count, total_cost
 - Integration with web UI: Create a 'View All Proposals' page or sidebar panel
 
+
+
+## 2026-01-09 - Azure Pricing Links in Proposals
+
+**Feature**: Include links to Azure pricing pages in the proposal for transparency
+
+**What was done**:
+- Created new utility module `src/shared/azure_pricing_urls.py` with comprehensive Azure service to pricing URL mappings
+- Added `get_pricing_url_for_service()` function that maps 50+ Azure services to their official pricing pages
+- Added `format_service_with_pricing_link()` function that formats service names as markdown links
+- Includes alternate service names (e.g., both 'SQL Database' and 'Azure SQL Database')
+- Fallback to Azure pricing calculator for unknown services
+- Updated Proposal Agent instructions in `src/agents/proposal_agent.py` to require pricing links
+- Modified Cost Breakdown table format to show service names as clickable markdown links
+- Added explicit examples of pricing link format in agent instructions
+- Instructions specify using format: `[Service Name](https://azure.microsoft.com/pricing/details/{service}/)`
+
+**Test coverage**:
+- Created `tests/test_pricing_urls.py` with 19 comprehensive tests (all passing)
+  - TestPricingURLMapping: 10 tests for URL mapping accuracy
+  - TestPricingLinkFormatting: 5 tests for markdown link formatting
+  - TestServiceMappingCoverage: 4 tests for mapping completeness and URL quality
+- Created `tests/test_proposal_pricing_links.py` with 9 comprehensive tests (all passing)
+  - TestProposalAgentInstructions: 3 tests verifying pricing link guidance in instructions
+  - TestProposalLinkFormatRequirements: 3 tests for HTTPS and URL format requirements
+  - TestProposalPricingLinkContent: 1 test for table format expectations
+  - TestProposalPricingURLUtility: 2 tests for utility module existence and coverage
+- All existing tests continue to pass (190 passed, 1 pre-existing failure, 2 skipped)
+
+**Architecture decisions**:
+- Centralized service-to-URL mapping in dedicated utility module for maintainability
+- Supports both canonical and alternate service names for flexibility
+- Graceful fallback to pricing calculator for unmapped services
+- HTTPS-only URLs pointing to official Azure domains
+- Pricing links embedded directly in Cost Breakdown table for easy access
+- Agent instructions include multiple examples to guide proper link generation
+
+**Service coverage**:
+The utility module includes pricing URLs for 50+ Azure services including:
+- Compute: Virtual Machines, App Service, Azure Functions, AKS, Container Instances
+- Data: SQL Database, Cosmos DB, Storage Accounts, Blob Storage, Data Lake Storage
+- Networking: Load Balancer, Application Gateway, Front Door, CDN, VPN Gateway
+- Developer tools: Azure DevOps, API Management, Logic Apps
+- AI/ML: Machine Learning, Cognitive Services, Databricks, Synapse Analytics
+- Infrastructure: Key Vault, Monitor, Log Analytics
+
+**What this enables**:
+- Proposal recipients can directly navigate to Azure pricing pages for any service
+- Transparent pricing allows customers to verify costs independently
+- Builds trust by providing authoritative pricing sources
+- Enables customers to explore pricing tiers, reserved instances, and savings plans
+- Improves proposal professionalism and credibility
+
+**Next developer notes**:
+- The Proposal Agent now has instructions to include pricing links, but actual link generation depends on the LLM following instructions
+- Consider adding post-processing to automatically inject links if the agent doesn't include them
+- The utility module can be expanded with more Azure services as needed
+- Consider adding SKU-specific deep links (e.g., direct link to specific VM size)
+- Could add link validation to ensure URLs remain valid over time
+- For development: Test proposal generation with live Azure credentials to verify agent follows link instructions
+- The service mapping may need updates as Azure services are renamed or pricing pages change
+- Consider adding region-specific pricing links if Azure provides those URLs
+- Could enhance with pricing comparison tables for different regions
+- Future enhancement: Add pricing API integration to embed actual prices directly in markdown

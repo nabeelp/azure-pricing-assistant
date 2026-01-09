@@ -48,7 +48,14 @@ Create a detailed table using this format:
 
 | Service | SKU | Quantity | Hourly Rate | Monthly Cost |
 |---------|-----|----------|-------------|--------------|
-| [Service] | [SKU] | [Qty] | $[rate] | $[cost] |
+| [[Service Name](pricing_url)] | [SKU] | [Qty] | $[rate] | $[cost] |
+
+**IMPORTANT**: Each service name in the table MUST be a markdown link to its Azure pricing page.
+- Use the format: [Service Name](https://azure.microsoft.com/pricing/details/{service}/)
+- Example: [Virtual Machines](https://azure.microsoft.com/pricing/details/virtual-machines/)
+- Example: [App Service](https://azure.microsoft.com/pricing/details/app-service/)
+- Example: [Azure SQL Database](https://azure.microsoft.com/pricing/details/azure-sql-database/)
+- If unsure of the exact URL, use the Azure pricing calculator: https://azure.microsoft.com/pricing/calculator/
 
 **Notes:**
 - Add any relevant notes about pricing (e.g., "Pricing based on 730 hours/month", "Pay-as-you-go rates")

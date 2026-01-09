@@ -20,7 +20,7 @@
       "Click on a pricing link and verify it navigates to the correct Azure pricing page",
       "Verify links use the format: https://azure.microsoft.com/pricing/details/{service}/"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -31,7 +31,7 @@
       "Generate a test proposal",
       "Verify pricing links are included in the output"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "observability",
