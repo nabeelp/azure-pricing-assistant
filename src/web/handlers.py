@@ -149,3 +149,15 @@ class WebHandlers:
         """
         bom_items = await self.interface.get_bom_items(session_id)
         return {"bom_items": bom_items}
+
+    def handle_get_proposal(self, session_id: str) -> Dict[str, Any]:
+        """
+        Handle proposal retrieval endpoint.
+
+        Args:
+            session_id: Unique session identifier
+
+        Returns:
+            Dictionary with stored proposal (bom, pricing, proposal) or error
+        """
+        return self.interface.get_stored_proposal(session_id)

@@ -33,7 +33,7 @@
       "Retrieve the stored proposal via API",
       "Verify proposal content matches the generated output"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

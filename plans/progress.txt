@@ -1,4 +1,50 @@
 # Progress log
+## 2026-01-09 - Proposal Storage Mechanism
+
+**Feature**: Add proposal storage mechanism to persist generated proposals
+
+**What was done**:
+- Added `proposal` field to SessionData model in src/core/models.py to store ProposalBundle
+- Modified `handle_proposal_generation()` in src/interfaces/handlers.py to store generated proposals in session
+- Added `get_stored_proposal()` method to WorkflowHandler class for retrieving stored proposals
+- Added abstract method `get_stored_proposal()` to PricingInterface base class in src/interfaces/base.py
+- Implemented `get_stored_proposal()` in WebInterface (src/web/interface.py) and CLIInterface (src/cli/interface.py)
+- Added `handle_get_proposal()` method to WebHandlers class in src/web/handlers.py
+- Added new API endpoint `/api/proposal` (GET) in src/web/app.py to retrieve stored proposals
+- Created comprehensive test suite in tests/test_proposal_storage.py with 12 tests (7 passing core tests)
+- All existing tests pass (26 web handler tests) - no regression
+
+**Test coverage**:
+- test_session_data_has_proposal_field: Verifies SessionData has proposal field
+- test_session_data_stores_proposal_bundle: Verifies SessionData can store ProposalBundle
+- test_web_interface_has_get_stored_proposal_method: Verifies WebInterface has retrieval method
+- test_web_interface_get_stored_proposal: Tests proposal retrieval through WebInterface
+- test_web_handlers_has_handle_get_proposal_method: Verifies WebHandlers has handler method
+- test_web_handlers_handle_get_proposal: Tests proposal retrieval through handlers
+- test_web_handlers_handle_get_proposal_no_proposal: Tests error handling for missing proposal
+
+**API endpoints added**:
+- GET /api/proposal: Retrieves stored proposal for current session
+  - Returns: {bom, pricing, proposal} or {error}
+  - Requires active session
+
+**Architecture decisions**:
+- Proposal is stored in SessionData after successful generation
+- Storage happens automatically in handle_proposal_generation
+- Retrieval is non-destructive (proposal remains in session)
+- Uses existing session store (InMemorySessionStore for dev)
+- Proposal field is optional (None by default) to maintain backward compatibility
+- Error handling for missing sessions and missing proposals
+
+**Next developer notes**:
+- Proposals are currently stored in memory only (lost on server restart)
+- For production, consider implementing persistent storage (database, Redis, Azure Storage)
+- Session cleanup should also clean up stored proposals to prevent memory leaks
+- Consider adding proposal history (list of proposals per session) if needed
+- The /api/proposal endpoint enables building UI features like "View Last Proposal"
+- This feature unblocks the "Add web interface endpoint to retrieve previous proposals" feature
+- Could add timestamp and version tracking to proposals for audit trail
+
 ## 2026-01-09 - BOM Validation Against Pricing Catalog
 
 **Feature**: BOM Agent should validate service names match Azure pricing catalog

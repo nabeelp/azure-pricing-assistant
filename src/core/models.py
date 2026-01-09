@@ -72,6 +72,7 @@ class SessionData:
     history: List[dict]
     turn_count: int = 0  # Track conversation turns for 20-turn limit
     bom_items: List[Dict[str, Any]] = None  # Incremental BOM items built during conversation
+    proposal: Optional[ProposalBundle] = None  # Stored proposal after generation
 
     def __post_init__(self):
         """Initialize mutable default values."""

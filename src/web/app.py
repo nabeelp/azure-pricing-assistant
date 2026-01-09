@@ -175,6 +175,23 @@ def get_bom():
             return jsonify({'error': str(e), 'bom_items': []}), 500
 
 
+@app.route('/api/proposal', methods=['GET'])
+def get_proposal():
+    """Get stored proposal for the session."""
+    session_id = session.get('session_id')
+    
+    if not session_id:
+        return jsonify({'error': 'No active session'}), 400
+    
+    session_span = get_or_create_session_span(session_id)
+    with trace.use_span(session_span, end_on_exit=False):
+        try:
+            result = handlers.handle_get_proposal(session_id)
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
 @app.route('/health')
 def health():
     """Health check endpoint."""

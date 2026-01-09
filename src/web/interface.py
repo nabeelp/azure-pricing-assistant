@@ -99,3 +99,15 @@ class WebInterface(PricingInterface):
         if not session_data:
             return []
         return session_data.bom_items or []
+
+    def get_stored_proposal(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get stored proposal for a session.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with bom, pricing, proposal, or error
+        """
+        return self.handler.get_stored_proposal(self.context, session_id)
