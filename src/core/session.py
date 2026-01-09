@@ -23,3 +23,11 @@ class InMemorySessionStore:
 
     def clear(self) -> None:
         self._sessions.clear()
+
+    def get_all_with_proposals(self) -> Dict[str, SessionData]:
+        """Get all sessions that have stored proposals.
+        
+        Returns:
+            Dictionary mapping session_id to SessionData for sessions with proposals
+        """
+        return {sid: data for sid, data in self._sessions.items() if data.proposal is not None}

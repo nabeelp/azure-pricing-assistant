@@ -161,3 +161,28 @@ class WebHandlers:
             Dictionary with stored proposal (bom, pricing, proposal) or error
         """
         return self.interface.get_stored_proposal(session_id)
+
+    def handle_get_all_proposals(self) -> Dict[str, Any]:
+        """
+        Handle retrieval of all proposals across all sessions.
+
+        Returns:
+            Dictionary with proposals array containing session_id and proposal data
+        """
+        try:
+            sessions_with_proposals = self.interface.context.session_store.get_all_with_proposals()
+            
+            proposals = []
+            for session_id, session_data in sessions_with_proposals.items():
+                if session_data.proposal:
+                    proposals.append({
+                        "session_id": session_id,
+                        "bom": session_data.proposal.bom_text,
+                        "pricing": session_data.proposal.pricing_text,
+                        "proposal": session_data.proposal.proposal_text,
+                    })
+            
+            return {"proposals": proposals, "count": len(proposals)}
+        except Exception as e:
+            logger.error(f"Error retrieving all proposals: {e}")
+            return {"error": str(e), "proposals": [], "count": 0}

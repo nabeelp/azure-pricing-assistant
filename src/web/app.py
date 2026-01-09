@@ -192,6 +192,16 @@ def get_proposal():
             return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/proposals', methods=['GET'])
+def get_all_proposals():
+    """Get all stored proposals across all sessions."""
+    try:
+        result = handlers.handle_get_all_proposals()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e), 'proposals': [], 'count': 0}), 500
+
+
 @app.route('/health')
 def health():
     """Health check endpoint."""

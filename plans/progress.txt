@@ -159,3 +159,69 @@ This feature was already fully implemented before this review. The implementatio
 - Health endpoint is simple but critical for monitoring/deployment readiness checks
 - Consider adding health checks that validate Azure AI client connectivity (if needed for production readiness)
 - test_web_handlers.py now has comprehensive coverage of all major endpoints except SSE streaming
+## 2026-01-09 - Web Interface Endpoint to Retrieve All Proposals
+
+**Feature**: Add web interface endpoint to retrieve previous proposals
+
+**What was done**:
+- Added get_all_with_proposals() method to InMemorySessionStore in src/core/session.py
+  - Returns dictionary mapping session_id to SessionData for sessions with stored proposals
+  - Filters out sessions without proposals to only return relevant data
+- Added handle_get_all_proposals() method to WebHandlers class in src/web/handlers.py
+  - Retrieves all proposals across all sessions via session store
+  - Returns structured response with proposals array and count
+  - Includes error handling for graceful failure scenarios
+- Added new API endpoint `/api/proposals` (GET) in src/web/app.py
+  - No session required (retrieves proposals from all sessions)
+  - Returns JSON with proposals array, each containing session_id, bom, pricing, proposal
+  - Includes count field for total number of proposals
+- Created comprehensive test suite in tests/test_proposals_endpoint.py with 12 tests (all passing)
+- Created integration workflow tests in tests/test_retrieve_proposals_workflow.py with 3 tests (all passing)
+- All existing tests pass (26 web handler tests, 12 proposal endpoint tests) - no regression
+
+**Test coverage**:
+- test_get_all_proposals_returns_200: Validates HTTP 200 OK response
+- test_get_all_proposals_returns_correct_count: Validates count field accuracy
+- test_get_all_proposals_contains_session_ids: Ensures session IDs are included
+- test_get_all_proposals_contains_proposal_data: Validates complete proposal structure
+- test_get_all_proposals_with_empty_store: Tests empty store behavior
+- test_get_all_proposals_excludes_sessions_without_proposals: Ensures filtering works
+- Session store method tests (3 tests) for get_all_with_proposals()
+- WebHandlers method tests (3 tests) for handle_get_all_proposals()
+- Integration workflow tests (3 tests) for multi-session proposal scenarios
+
+**API endpoint added**:
+- GET /api/proposals: Retrieves all stored proposals across all sessions
+  - Returns: {proposals: [{session_id, bom, pricing, proposal}, ...], count: number}
+  - No authentication or session required (dev environment)
+  - Error handling: {error: string, proposals: [], count: 0}
+
+**Architecture decisions**:
+- Endpoint retrieves proposals from all sessions (not just current session)
+- Uses existing InMemorySessionStore for consistency with storage mechanism
+- Proposals remain in session store (non-destructive retrieval)
+- Returns session_id with each proposal for future reference/deletion features
+- Empty proposal list returns 200 OK with empty array (not an error)
+- Filter logic at storage layer (get_all_with_proposals) keeps handler simple
+
+**What this enables**:
+- Web UI can now display a list of all previously generated proposals
+- Users can view proposal history across multiple sessions
+- Foundation for proposal management features (delete, update, export)
+- Supports building a proposals gallery or history page
+- Enables comparison between different proposals
+
+**Next developer notes**:
+- Proposals are stored in-memory only (lost on server restart)
+- For production, implement persistent storage (database, Redis, Azure Storage)
+- Consider adding pagination for /api/proposals if count grows large
+- Could add query parameters: ?limit=10&offset=0 for pagination
+- Could add filtering: ?session_id=xxx or ?date_from=xxx
+- Consider adding DELETE /api/proposals/:session_id to remove old proposals
+- Could add PUT /api/proposals/:session_id to update proposals
+- Session cleanup should also clean up stored proposals to prevent memory leaks
+- The endpoint currently has no authentication - add auth for production
+- Consider adding timestamps to proposals for sorting/filtering by date
+- Could enhance response with metadata: created_at, session_duration, service_count, total_cost
+- Integration with web UI: Create a 'View All Proposals' page or sidebar panel
+
