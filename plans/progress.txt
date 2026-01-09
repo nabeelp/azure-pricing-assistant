@@ -65,3 +65,23 @@
 
 **Key points**: Retry preserves last message. Errors shown as banner (ephemeral) + inline (persistent). Professional UX with icons, animations, actionable guidance.
 
+## 2026-01-09 - Question Agent Unit Tests
+
+**What was done**:
+- Created `tests/test_question_agent.py` with 33 comprehensive unit tests
+- All tests use mocked AzureAIAgentClient (no live Azure credentials required)
+- Test coverage includes:
+  - Agent creation and configuration (2 tests)
+  - Adaptive questioning flow for technical/non-technical users (5 tests)
+  - Turn limit enforcement at 20 turns (4 tests)
+  - Completion detection with done=true JSON response (6 tests)
+  - Architecture-based questioning (5 tests)
+  - Priority information gathering (4 tests)
+  - Numbered options format (3 tests)
+  - Requirements summary template (2 tests)
+  - Microsoft Learn MCP integration (2 tests)
+
+**Key points**: All 33 tests passing. Validates Question Agent instructions align with PRD requirements (adaptive questioning, architecture lookup, 20-turn max, completion contract). No Azure credentials needed. No regressions in existing 255 unit tests.
+
+**Next steps**: Consider adding more high-priority tests from PRD (Proposal Agent validation, incremental BOM, pricing integration).
+

@@ -95,7 +95,7 @@
       "Test completion detection with done=true JSON response",
       "Verify all tests pass without live Azure credentials"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {
