@@ -9,7 +9,8 @@
       "Start a new session and generate another proposal",
       "Verify both proposals are retrievable"
     ],
-    "passes": true
+    "passes": true,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -20,7 +21,8 @@
       "Click on a pricing link and verify it navigates to the correct Azure pricing page",
       "Verify links use the format: https://azure.microsoft.com/pricing/details/{service}/"
     ],
-    "passes": true
+    "passes": true,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -31,7 +33,8 @@
       "Generate a test proposal",
       "Verify pricing links are included in the output"
     ],
-    "passes": true
+    "passes": true,
+    "priority": "medium"
   },
   {
     "category": "observability",
@@ -43,7 +46,8 @@
       "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
       "View the metric in Aspire Dashboard or metrics viewer"
     ],
-    "passes": true
+    "passes": true,
+    "priority": "medium"
   },
   {
     "category": "observability",
@@ -54,7 +58,8 @@
       "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
       "Generate multiple proposals and verify counter increases"
     ],
-    "passes": true
+    "passes": true,
+    "priority": "medium"
   },
   {
     "category": "observability",
@@ -65,7 +70,8 @@
       "Trigger various error conditions (invalid input, API failures)",
       "Verify error counter increases with correct labels"
     ],
-    "passes": true
+    "passes": true,
+    "priority": "medium"
   },
   {
     "category": "observability",
@@ -76,7 +82,8 @@
       "Verify structured fields appear in log output",
       "Query logs in Aspire Dashboard using structured fields"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "testing",
@@ -88,7 +95,8 @@
       "Test completion detection with done=true JSON response",
       "Verify all tests pass without live Azure credentials"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "testing",
@@ -101,7 +109,8 @@
       "Test Total Cost Summary includes monthly and annual costs",
       "Test Next Steps and Assumptions sections are present"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "testing",
@@ -112,7 +121,8 @@
       "Verify BOM merge logic correctly updates existing items",
       "Verify BOM is complete after done=true signal"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "testing",
@@ -123,7 +133,8 @@
       "Test graceful fallback when pricing data unavailable",
       "Test pricing total calculation accuracy"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "testing",
@@ -134,7 +145,8 @@
       "Verify proposal costs match pricing output",
       "Verify proposal markdown is client-ready"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "functional",
@@ -145,7 +157,8 @@
       "Display running cost estimate in web UI BOM panel",
       "Update pricing when BOM items change"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -156,7 +169,8 @@
       "Update estimates in real-time as BOM changes",
       "Format costs with currency symbol"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "performance",
@@ -167,7 +181,8 @@
       "Implement caching for repeated documentation lookups",
       "Measure and verify response time improvement"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "performance",
@@ -178,7 +193,8 @@
       "Batch SKU lookups where possible",
       "Measure and verify response time improvement"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "performance",
@@ -189,7 +205,8 @@
       "Cache pricing data within session",
       "Measure and verify response time improvement"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -200,7 +217,8 @@
       "Test with database workload and verify database-specific questions",
       "Test with ML workload and verify ML-specific questions (GPU, training vs inference)"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "functional",
@@ -211,7 +229,8 @@
       "Test with non-technical user responses (general needs)",
       "Verify agent explains concepts and offers examples"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "evaluation",
@@ -222,7 +241,8 @@
       "Implement evaluation harness using azure-ai-evaluation",
       "Run evaluation and capture baseline scores"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "evaluation",
@@ -233,7 +253,8 @@
       "Define ground truth for minimum required information gathering",
       "Document dataset in tests/evaluation/"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "evaluation",
@@ -244,7 +265,8 @@
       "Define SKU selection accuracy criteria",
       "Document dataset in tests/evaluation/"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "evaluation",
@@ -255,7 +277,8 @@
       "Define pricing accuracy tolerance (within 5%)",
       "Document dataset in tests/evaluation/"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "evaluation",
@@ -266,7 +289,8 @@
       "Define completeness checklist (all sections present)",
       "Document dataset in tests/evaluation/"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "testing",
@@ -277,7 +301,8 @@
       "Test GET /api/bom returns 400 for invalid session",
       "Verify response schema matches expected format"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "testing",
@@ -288,7 +313,8 @@
       "Verify workflow_complete event contains proposal data",
       "Test error event handling for failed generations"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -299,7 +325,8 @@
       "Verify agent asks about architecture components from the reference",
       "Verify questions include networking, gateways, security features"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -311,7 +338,8 @@
       "Verify agent asks about WAF for security",
       "Verify these are included in the final requirements summary"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -322,7 +350,8 @@
       "Verify agent asks about private endpoints for data services",
       "Verify architecture components are included in requirements"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -333,7 +362,8 @@
       "Verify savings_options array includes region recommendations",
       "Verify estimated_monthly_savings values are calculated"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "ui",
@@ -345,7 +375,8 @@
       "Verify chat history is restored from session",
       "Verify BOM items are restored"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "ui",
@@ -356,7 +387,8 @@
       "Verify user can continue or reset session",
       "Test error display for proposal generation failures"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "documentation",
@@ -367,7 +399,8 @@
       "Document how to run evaluations",
       "Document how to interpret results"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "low"
   },
   {
     "category": "documentation",
@@ -378,7 +411,8 @@
       "Include example curl commands",
       "Include error response formats"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -389,7 +423,8 @@
       "Verify error is added to errors array",
       "Verify proposal notes pricing unavailability"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "functional",
@@ -400,7 +435,8 @@
       "Verify format is YYYY-MM-DD (ISO 8601)",
       "Verify date is current or recent"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -412,7 +448,8 @@
       "Test that agent reaches done=true in fewer turns (target: 5-8 turns)",
       "Verify gathered requirements are sufficient for BOM generation"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "functional",
@@ -423,7 +460,8 @@
       "Test with sample conversation and verify faster completion",
       "Verify BOM Agent can still generate accurate BOM from streamlined requirements"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "functional",
@@ -435,7 +473,8 @@
       "Test BOM output against Pricing Agent and verify all items get valid prices",
       "Add validation to reject BOM items with unmappable service/SKU combinations"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "functional",
@@ -446,7 +485,8 @@
       "Include meter name hints for Pricing Agent consumption",
       "Test pricing accuracy for App Service, SQL Database, Virtual Machines, Storage Accounts"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "high"
   },
   {
     "category": "functional",
@@ -457,7 +497,8 @@
       "Query knowledge base when selecting SKUs based on requirements",
       "Verify SKU recommendations match workload requirements (size, performance tier)"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -468,7 +509,8 @@
       "Use retrieved information to select appropriate SKU tier",
       "Test SKU selection accuracy for various workload sizes"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "functional",
@@ -479,7 +521,8 @@
       "Match customer requirements to appropriate SKU based on capabilities",
       "Add fallback logic when exact match is not available"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
   },
   {
     "category": "deployment",
@@ -493,6 +536,96 @@
       "Verify environment variables are properly configured in Azure App Service",
       "Verify Azure AI Foundry connection is working in production"
     ],
-    "passes": false
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Refactor orchestrator to run BOM updates as non-blocking background tasks",
+    "steps": [
+      "Extract run_incremental_bom_update() in src/core/orchestrator.py into async background task function",
+      "Modify run_question_turn() to spawn BOM task using asyncio.create_task() without awaiting",
+      "Return chat response immediately while BOM processes in background",
+      "Add task tracking fields to SessionData model (bom_task_handle, bom_task_status)",
+      "Implement task completion callback to update session state when BOM finishes",
+      "Add cancellation support for in-progress BOM tasks when new ones are triggered"
+    ],
+    "passes": false,
+    "priority": "high"
+  },
+  {
+    "category": "functional",
+    "description": "Implement SSE streaming endpoint /api/bom-stream for real-time BOM updates",
+    "steps": [
+      "Create new route GET /api/bom-stream in src/web/app.py following proposal streaming pattern",
+      "Implement handle_bom_stream() in src/web/handlers.py to yield BOM events as async generator",
+      "Define BOM event types: bom_initial (current state), bom_processing (started), bom_update (new items), bom_complete (finished), bom_error (failed)",
+      "Implement session-level notification mechanism (queue or callback) for BOM state changes",
+      "Add proper SSE response headers and event formatting (data: JSON\\n\\n)",
+      "Handle client disconnection and cleanup of SSE resources"
+    ],
+    "passes": false,
+    "priority": "high"
+  },
+  {
+    "category": "functional",
+    "description": "Enhance SessionData model with BOM task lifecycle tracking",
+    "steps": [
+      "Add bom_task_status field to SessionData in src/core/session.py (values: idle, queued, processing, complete, error)",
+      "Add bom_task_error field to store error messages from failed BOM updates",
+      "Add bom_last_update field with datetime to track when BOM was last modified",
+      "Add bom_task_handle field to store asyncio.Task reference for cancellation",
+      "Implement thread-safe update methods for concurrent access to BOM task state",
+      "Add state transition validation (idle → queued → processing → complete/error)"
+    ],
+    "passes": false,
+    "priority": "high"
+  },
+  {
+    "category": "ui",
+    "description": "Update web UI to consume BOM SSE stream and display real-time updates",
+    "steps": [
+      "Add EventSource connection to /api/bom-stream in src/web/templates/index.html after chat session starts",
+      "Subscribe to BOM SSE events and parse JSON data from each event",
+      "Update updateBOM() function to handle bom_update events and render new items with animation",
+      "Add visual feedback for bom_processing state (spinner or progress indicator in BOM panel)",
+      "Display error messages in UI when bom_error event is received",
+      "Implement SSE reconnection logic with exponential backoff on connection failures",
+      "Close EventSource connection on session reset or page unload"
+    ],
+    "passes": false,
+    "priority": "high"
+  },
+  {
+    "category": "functional",
+    "description": "Implement error handling and task cancellation for background BOM updates",
+    "steps": [
+      "Wrap async BOM task execution in try/except to catch all exceptions",
+      "Store caught exceptions in SessionData.bom_task_error with full traceback",
+      "Propagate errors via SSE bom_error event with sanitized error message for UI",
+      "Implement task cancellation when user resets session (call task.cancel() on bom_task_handle)",
+      "Implement task cancellation when new BOM update is triggered mid-processing (cancel previous, start new)",
+      "Add timeout configuration for BOM agent calls (default 30s) using asyncio.wait_for()",
+      "Implement graceful fallback when MCP tools fail (log error, return partial BOM with error note)",
+      "Add OpenTelemetry metrics for BOM task failures and timeout rates"
+    ],
+    "passes": false,
+    "priority": "high"
+  },
+  {
+    "category": "testing",
+    "description": "Add comprehensive tests for async BOM workflow",
+    "steps": [
+      "Create test_async_bom.py with unit tests for background BOM task execution",
+      "Test non-blocking behavior: verify chat response returns before BOM task completes",
+      "Test SSE event sequence: verify bom_initial → bom_processing → bom_update → bom_complete events",
+      "Test concurrent BOM updates: multiple sessions updating BOMs simultaneously without interference",
+      "Test task cancellation: verify previous BOM task is cancelled when new one starts",
+      "Test error handling: simulate MCP failures and verify bom_error event with proper error message",
+      "Test timeout handling: simulate slow BOM agent and verify timeout triggers after configured duration",
+      "Add integration test with live BOM agent to validate complete async workflow"
+    ],
+    "passes": false,
+    "priority": "high"
   }
 ]

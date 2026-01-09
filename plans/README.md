@@ -6,8 +6,9 @@
 
 Each item typically contains:
 
-- `category`: e.g. `functional` or `ui`
+- `category`: e.g. `functional`, `ui`, `testing`, `observability`, `performance`, `evaluation`, `documentation`, or `deployment`
 - `description`: one-line requirement/behavior
+- `priority`: priority level - `high`, `medium`, or `low`
 - `steps`: human-readable acceptance steps
 - `passes`: boolean that flips to `true` when the work item is completed
 
@@ -22,6 +23,7 @@ Each item typically contains:
 	{
 		"category": "functional",
 		"description": "User can send a message and see it appear in the conversation",
+		"priority": "high",
 		"steps": [
 			"Open the chat app and navigate to a conversation",
 			"Type a message in the composer",
@@ -34,6 +36,7 @@ Each item typically contains:
 	{
 		"category": "functional",
 		"description": "Messages persist after refresh/reopen",
+		"priority": "high",
 		"steps": [
 			"Send a message in a conversation",
 			"Refresh the page (or close and reopen the app)",
@@ -45,6 +48,7 @@ Each item typically contains:
 	{
 		"category": "functional",
 		"description": "Real-time incoming messages appear without manual refresh",
+		"priority": "medium",
 		"steps": [
 			"Open the same conversation in two browser windows (User A and User B)",
 			"From User B, send a message to the conversation",
@@ -56,6 +60,7 @@ Each item typically contains:
 	{
 		"category": "ui",
 		"description": "Conversation list shows name, last message preview, and timestamp",
+		"priority": "medium",
 		"steps": [
 			"Open the chat app with existing conversations",
 			"Verify each conversation row shows a title/name",
@@ -67,6 +72,7 @@ Each item typically contains:
 	{
 		"category": "ui",
 		"description": "Composer disables Send for empty message and enables when text is present",
+		"priority": "low",
 		"steps": [
 			"Open a conversation",
 			"Verify the Send button is disabled when the composer is empty",
