@@ -15,6 +15,7 @@ from src.core.orchestrator import (
 )
 from src.core.models import ProposalBundle
 from src.shared.errors import WorkflowError
+from src.web.session_tracing import end_session_span
 from .context import InterfaceContext
 
 # Get logger (setup handled by application entry point)
@@ -162,6 +163,10 @@ class WorkflowHandler:
                     f"Proposal={len(bundle.proposal_text)} chars"
                 )
 
+                # End session span after successful proposal generation
+                end_session_span(session_id)
+                logger.debug(f"Session span ended for {session_id}")
+
                 return {
                     "bom": bundle.bom_text,
                     "pricing": bundle.pricing_text,
@@ -169,6 +174,8 @@ class WorkflowHandler:
                 }
             except Exception as e:
                 logger.error(f"Error generating proposal for session {session_id}: {e}")
+                # End session span even on error to avoid orphaned spans
+                end_session_span(session_id)
                 return {"error": str(e)}
 
     def handle_reset_session(
