@@ -148,6 +148,121 @@ def parse_bom_response(response: str, allow_empty: bool = False) -> List[Dict[st
         raise
 
 
+async def validate_bom_item(
+    service_name: str, sku: str, region: str, validation_agent, thread
+) -> tuple[bool, str]:
+    """
+    Validate a single BOM item using the validation agent.
+
+    Args:
+        service_name: Azure service name
+        sku: SKU identifier
+        region: ARM region name
+        validation_agent: Agent for validation
+        thread: Thread for conversation
+
+    Returns:
+        Tuple of (is_valid, reason_or_message)
+    """
+    query = f"Validate that the Azure service '{service_name}' with SKU '{sku}' exists in region '{region}'. Use azure_sku_discovery tool."
+
+    response_text = ""
+    async for update in validation_agent.run_stream(query, thread=thread):
+        if update.text:
+            response_text += update.text
+
+    # Check if validation passed
+    response_lower = response_text.lower()
+    if "valid" in response_lower and "invalid" not in response_lower:
+        return True, response_text.strip()
+    else:
+        return False, response_text.strip()
+
+
+async def validate_bom_against_pricing_catalog(
+    bom_items: List[Dict[str, Any]], client: AzureAIAgentClient
+) -> Dict[str, Any]:
+    """
+    Validate BOM items against Azure pricing catalog using azure_sku_discovery.
+
+    Args:
+        bom_items: List of BOM items to validate
+        client: Azure AI client for MCP tool access
+
+    Returns:
+        Dictionary with validation results:
+        {
+            "valid_items": [...],  # Items that passed validation
+            "invalid_items": [...],  # Items that failed validation with reasons
+            "warnings": [...]  # Non-critical warnings
+        }
+    """
+    from agent_framework import MCPStreamableHTTPTool, ChatAgent
+
+    mcp_url = os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
+    azure_pricing_mcp = MCPStreamableHTTPTool(
+        name="Azure Pricing",
+        description="Azure Pricing MCP server for SKU validation.",
+        url=mcp_url,
+    )
+
+    # Create a temporary agent for validation calls
+    validation_instructions = """You are a validation assistant.
+Call the azure_sku_discovery tool with the provided service and SKU information to verify it exists in the Azure pricing catalog.
+Return only the validation result: "VALID" if the service/SKU combination exists, or "INVALID: <reason>" if not found."""
+
+    validation_agent = ChatAgent(
+        chat_client=client,
+        tools=[azure_pricing_mcp],
+        instructions=validation_instructions,
+        name="bom_validator",
+    )
+
+    valid_items = []
+    invalid_items = []
+    warnings = []
+
+    for idx, item in enumerate(bom_items):
+        service_name = item["serviceName"]
+        sku = item["sku"]
+        region = item["armRegionName"]
+
+        logger.info(f"Validating BOM item {idx}: {service_name} / {sku} in {region}")
+
+        try:
+            thread = validation_agent.get_new_thread()
+            is_valid, response_text = await validate_bom_item(
+                service_name, sku, region, validation_agent, thread
+            )
+
+            if is_valid:
+                valid_items.append(item)
+                logger.info(f"✓ BOM item {idx} validated successfully")
+            else:
+                invalid_items.append(
+                    {
+                        "item": item,
+                        "reason": response_text,
+                        "index": idx,
+                    }
+                )
+                logger.warning(f"✗ BOM item {idx} validation failed: {response_text}")
+
+        except Exception as e:
+            logger.error(f"Error validating BOM item {idx}: {e}")
+            warnings.append(
+                f"Could not validate item {idx} ({service_name}/{sku}): {str(e)}"
+            )
+            # On error, assume valid to not block workflow
+            valid_items.append(item)
+
+    return {
+        "valid_items": valid_items,
+        "invalid_items": invalid_items,
+        "warnings": warnings,
+    }
+
+
 def create_bom_agent(client: AzureAIAgentClient) -> ChatAgent:
     """
     Create BOM Agent with Phase 2 enhanced instructions.

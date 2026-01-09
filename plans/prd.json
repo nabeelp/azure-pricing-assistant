@@ -502,7 +502,7 @@
       "Correct or flag services that don't match pricing catalog",
       "Test with edge cases (deprecated SKUs, regional availability)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

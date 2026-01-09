@@ -1,4 +1,45 @@
 # Progress log
+## 2026-01-09 - BOM Validation Against Pricing Catalog
+
+**Feature**: BOM Agent should validate service names match Azure pricing catalog
+
+**What was done**:
+- Added `validate_bom_against_pricing_catalog()` async function in src/agents/bom_agent.py
+- Added helper function `validate_bom_item()` for validating individual BOM items
+- Function creates a temporary validation agent that uses azure_sku_discovery MCP tool
+- Validates each BOM item's service name and SKU against Azure pricing catalog
+- Returns structured validation results: valid_items, invalid_items, warnings
+- Implements fail-open approach: on validation errors, items are assumed valid to not block workflow
+- Exported validation function from src/agents/__init__.py for external use
+- Created comprehensive test file tests/test_bom_validation.py with 5 unit tests + 2 live integration tests
+- All unit tests pass (using mocks for isolated testing)
+- All existing BOM agent tests still pass (25 tests) - no regression
+- Updated PRD: Marked BOM validation feature as passing
+
+**Test coverage**:
+- test_validation_with_valid_items: Validates BOM items that exist in catalog
+- test_validation_with_invalid_items: Detects invalid service/SKU combinations
+- test_validation_with_mixed_items: Handles mix of valid and invalid items
+- test_validation_handles_errors_gracefully: Fail-open on MCP errors
+- test_validation_with_empty_bom: Handles edge case of empty BOM
+- Live tests available with RUN_LIVE_BOM_VALIDATION=1 environment variable
+
+**Architecture decisions**:
+- Validation is separate from BOM generation (can be called optionally)
+- Uses same MCP tools as BOM agent for consistency
+- Returns detailed validation results rather than just pass/fail
+- Fail-open approach prevents blocking workflow on transient MCP issues
+- Structured return format allows callers to decide how to handle invalid items
+
+**Next developer notes**:
+- This validation function is now available but NOT yet integrated into the orchestration workflow
+- To use: Import validate_bom_against_pricing_catalog and call after BOM generation
+- Consider adding validation step in orchestrator.py after BOM finalization
+- Consider adding UI feedback for validation results in web interface
+- Invalid items could be logged, corrected automatically, or presented to user
+- Live tests require Azure Pricing MCP server running at AZURE_PRICING_MCP_URL
+- The azure_sku_discovery tool provides fuzzy matching - may be lenient with invalid service names
+
 ## 2026-01-09 - Health Endpoint Tests Added
 
 **Feature**: Add tests for web API endpoint /health
