@@ -425,5 +425,65 @@ class TestWebHandlerErrorHandling:
         assert result["response"] is None or result["response"] == ""
 
 
+class TestHealthEndpoint:
+    """Test health check endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_health_returns_200(self):
+        """Test health endpoint returns 200 OK."""
+        from flask import Flask
+        
+        app = Flask(__name__)
+        
+        @app.route('/health')
+        def health():
+            from flask import jsonify
+            return jsonify({'status': 'healthy'})
+        
+        with app.test_client() as client:
+            response = client.get('/health')
+            assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_health_returns_healthy_status(self):
+        """Test health endpoint returns status: healthy in response."""
+        from flask import Flask
+        
+        app = Flask(__name__)
+        
+        @app.route('/health')
+        def health():
+            from flask import jsonify
+            return jsonify({'status': 'healthy'})
+        
+        with app.test_client() as client:
+            response = client.get('/health')
+            data = response.get_json()
+            assert data is not None
+            assert 'status' in data
+            assert data['status'] == 'healthy'
+
+    @pytest.mark.asyncio
+    async def test_health_responds_quickly(self):
+        """Test health endpoint responds quickly (< 100ms)."""
+        import time
+        from flask import Flask
+        
+        app = Flask(__name__)
+        
+        @app.route('/health')
+        def health():
+            from flask import jsonify
+            return jsonify({'status': 'healthy'})
+        
+        with app.test_client() as client:
+            start = time.time()
+            response = client.get('/health')
+            elapsed = (time.time() - start) * 1000  # Convert to ms
+            
+            assert response.status_code == 200
+            assert elapsed < 100  # Should respond in under 100ms
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

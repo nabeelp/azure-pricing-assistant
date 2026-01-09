@@ -1,0 +1,551 @@
+[
+  {
+    "category": "ui",
+    "description": "Integrate streaming progress feedback into the web UI for visual progress indication during proposal generation",
+    "steps": [
+      "Open the web application and start a chat session",
+      "Complete the requirements gathering phase",
+      "Click 'Generate Proposal' button",
+      "Verify a visual progress indicator shows current agent (BOM, Pricing, Proposal)",
+      "Verify each agent step updates the UI in real-time via SSE events",
+      "Verify completion displays the final proposal"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Add web interface endpoint to retrieve previous proposals",
+    "steps": [
+      "Complete a full proposal generation workflow",
+      "Access the '/api/proposals' endpoint (or equivalent)",
+      "Verify the previous proposal is returned",
+      "Start a new session and generate another proposal",
+      "Verify both proposals are retrievable"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Add proposal storage mechanism to persist generated proposals",
+    "steps": [
+      "Generate a proposal through the web or CLI interface",
+      "Verify proposal is stored in session or persistent storage",
+      "Retrieve the stored proposal via API",
+      "Verify proposal content matches the generated output"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Include links to Azure pricing pages in the proposal for transparency",
+    "steps": [
+      "Generate a proposal with at least 2 Azure services",
+      "Verify each service in the Cost Breakdown section has a pricing link",
+      "Click on a pricing link and verify it navigates to the correct Azure pricing page",
+      "Verify links use the format: https://azure.microsoft.com/pricing/details/{service}/"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Proposal Agent should generate price citation links for each service",
+    "steps": [
+      "Review the Proposal Agent instructions in pricing_agent.py",
+      "Add instructions to include Azure pricing page URLs",
+      "Generate a test proposal",
+      "Verify pricing links are included in the output"
+    ],
+    "passes": false
+  },
+  {
+    "category": "observability",
+    "description": "Add OpenTelemetry metrics counters for chat turns",
+    "steps": [
+      "Create a metrics module in src/shared/",
+      "Define a counter metric for chat_turns_total",
+      "Instrument the chat turn handler to increment the counter",
+      "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
+      "View the metric in Aspire Dashboard or metrics viewer"
+    ],
+    "passes": false
+  },
+  {
+    "category": "observability",
+    "description": "Add OpenTelemetry metrics counters for proposal generations",
+    "steps": [
+      "Define a counter metric for proposals_generated_total",
+      "Instrument the proposal generation handler to increment the counter",
+      "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
+      "Generate multiple proposals and verify counter increases"
+    ],
+    "passes": false
+  },
+  {
+    "category": "observability",
+    "description": "Add OpenTelemetry metrics counters for errors",
+    "steps": [
+      "Define a counter metric for errors_total with labels for error_type",
+      "Instrument error handlers to increment the counter",
+      "Trigger various error conditions (invalid input, API failures)",
+      "Verify error counter increases with correct labels"
+    ],
+    "passes": false
+  },
+  {
+    "category": "observability",
+    "description": "Enhance logs with structured data using extra={} parameter for better querying",
+    "steps": [
+      "Identify key logging statements in agents and handlers",
+      "Add structured fields using extra={} parameter (e.g., session_id, agent_name, turn_count)",
+      "Verify structured fields appear in log output",
+      "Query logs in Aspire Dashboard using structured fields"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add unit tests for Question Agent live behavior with mocked responses",
+    "steps": [
+      "Create test_question_agent.py with mock AzureAIAgentClient",
+      "Test adaptive questioning flow with different user experience levels",
+      "Test turn limit enforcement (20 turns max)",
+      "Test completion detection with done=true JSON response",
+      "Verify all tests pass without live Azure credentials"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add unit tests for Proposal Agent output structure validation",
+    "steps": [
+      "Create tests that validate proposal has all required sections",
+      "Test Executive Summary section is present and has content",
+      "Test Solution Architecture section lists services",
+      "Test Cost Breakdown is a properly formatted markdown table",
+      "Test Total Cost Summary includes monthly and annual costs",
+      "Test Next Steps and Assumptions sections are present"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add integration tests for incremental BOM building during discovery",
+    "steps": [
+      "Create test that simulates multi-turn conversation",
+      "Verify BOM is updated incrementally after service mentions",
+      "Verify BOM merge logic correctly updates existing items",
+      "Verify BOM is complete after done=true signal"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add integration tests for pricing agent with live MCP server",
+    "steps": [
+      "Create test_pricing_integration.py",
+      "Test pricing lookup for common Azure services",
+      "Test graceful fallback when pricing data unavailable",
+      "Test pricing total calculation accuracy"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add integration tests for proposal generation workflow",
+    "steps": [
+      "Create test that validates complete BOM → Pricing → Proposal flow",
+      "Verify proposal includes all BOM items",
+      "Verify proposal costs match pricing output",
+      "Verify proposal markdown is client-ready"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Extend incremental BOM approach to pricing calculation during discovery",
+    "steps": [
+      "Modify orchestrator to invoke Pricing Agent incrementally",
+      "Calculate prices for BOM items as they are added",
+      "Display running cost estimate in web UI BOM panel",
+      "Update pricing when BOM items change"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Add running cost estimate display to web UI BOM panel",
+    "steps": [
+      "Modify BOM panel to show estimated costs per item",
+      "Add total cost estimate at bottom of BOM panel",
+      "Update estimates in real-time as BOM changes",
+      "Format costs with currency symbol"
+    ],
+    "passes": false
+  },
+  {
+    "category": "performance",
+    "description": "Optimize Question Agent response times",
+    "steps": [
+      "Profile Question Agent response latency",
+      "Identify slow MCP tool calls",
+      "Implement caching for repeated documentation lookups",
+      "Measure and verify response time improvement"
+    ],
+    "passes": false
+  },
+  {
+    "category": "performance",
+    "description": "Optimize BOM Agent MCP tool calls",
+    "steps": [
+      "Profile BOM Agent response latency",
+      "Reduce unnecessary azure_sku_discovery calls",
+      "Batch SKU lookups where possible",
+      "Measure and verify response time improvement"
+    ],
+    "passes": false
+  },
+  {
+    "category": "performance",
+    "description": "Optimize Pricing Agent MCP tool calls",
+    "steps": [
+      "Profile Pricing Agent response latency",
+      "Batch pricing lookups where possible",
+      "Cache pricing data within session",
+      "Measure and verify response time improvement"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Tune Question Agent adaptive questioning based on workload type",
+    "steps": [
+      "Test Question Agent with web application workload",
+      "Verify questions adapt to web-specific concerns (traffic, scaling, CDN)",
+      "Test with database workload and verify database-specific questions",
+      "Test with ML workload and verify ML-specific questions (GPU, training vs inference)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Tune Question Agent adaptive questioning based on user experience level",
+    "steps": [
+      "Test with technical user responses (specific SKUs, metrics)",
+      "Verify agent asks technical follow-ups",
+      "Test with non-technical user responses (general needs)",
+      "Verify agent explains concepts and offers examples"
+    ],
+    "passes": false
+  },
+  {
+    "category": "evaluation",
+    "description": "Set up AI evaluation framework for agent output quality",
+    "steps": [
+      "Create evaluation test dataset with sample requirements",
+      "Define quality metrics (relevance, accuracy, completeness)",
+      "Implement evaluation harness using azure-ai-evaluation",
+      "Run evaluation and capture baseline scores"
+    ],
+    "passes": false
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for Question Agent quality assessment",
+    "steps": [
+      "Define 10+ sample user personas with different workload types",
+      "Create expected questions for each persona",
+      "Define ground truth for minimum required information gathering",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for BOM Agent accuracy assessment",
+    "steps": [
+      "Define 10+ sample requirements with known correct BOM outputs",
+      "Include edge cases (multi-region, specialty workloads)",
+      "Define SKU selection accuracy criteria",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for Pricing Agent accuracy assessment",
+    "steps": [
+      "Define sample BOMs with known correct pricing",
+      "Include services with various pricing models",
+      "Define pricing accuracy tolerance (within 5%)",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for Proposal Agent quality assessment",
+    "steps": [
+      "Define sample proposals with quality ratings",
+      "Define criteria for professional tone assessment",
+      "Define completeness checklist (all sections present)",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add tests for web API endpoint /api/bom",
+    "steps": [
+      "Test GET /api/bom returns empty array for new session",
+      "Test GET /api/bom returns BOM items after chat with service mentions",
+      "Test GET /api/bom returns 400 for invalid session",
+      "Verify response schema matches expected format"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add tests for web API endpoint /health",
+    "steps": [
+      "Test GET /health returns 200 OK",
+      "Test response contains status: healthy",
+      "Verify endpoint responds quickly (< 100ms)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Add tests for SSE streaming proposal generation endpoint",
+    "steps": [
+      "Test GET /api/generate-proposal-stream returns SSE events",
+      "Verify agent_start events are emitted for each agent",
+      "Verify workflow_complete event contains proposal data",
+      "Test error event handling for failed generations"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Question Agent should look up recommended Azure architectures for workload types",
+    "steps": [
+      "User says 'I need a web application'",
+      "Verify agent uses microsoft_docs_search to find reference architectures",
+      "Verify agent asks about architecture components from the reference",
+      "Verify questions include networking, gateways, security features"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Question Agent should ask about architecture components (private networking, Application Gateway, WAF)",
+    "steps": [
+      "Start a chat session for a production web application",
+      "Verify agent asks about VNet integration or private networking",
+      "Verify agent asks about Application Gateway or load balancer",
+      "Verify agent asks about WAF for security",
+      "Verify these are included in the final requirements summary"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Question Agent should ask about API Management and private endpoints",
+    "steps": [
+      "Start a chat session for an API backend workload",
+      "Verify agent asks about API Management requirements",
+      "Verify agent asks about private endpoints for data services",
+      "Verify architecture components are included in requirements"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Pricing Agent should suggest cost optimization alternatives using azure_region_recommend",
+    "steps": [
+      "Generate pricing for a multi-service BOM",
+      "Verify Pricing Agent calls azure_region_recommend tool",
+      "Verify savings_options array includes region recommendations",
+      "Verify estimated_monthly_savings values are calculated"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ui",
+    "description": "Add session history persistence across browser refreshes",
+    "steps": [
+      "Start a chat session in the web UI",
+      "Send 3-4 messages",
+      "Refresh the browser page",
+      "Verify chat history is restored from session",
+      "Verify BOM items are restored"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ui",
+    "description": "Display error messages for failed API calls in web UI",
+    "steps": [
+      "Simulate a backend error during chat",
+      "Verify error message is displayed to user",
+      "Verify user can continue or reset session",
+      "Test error display for proposal generation failures"
+    ],
+    "passes": false
+  },
+  {
+    "category": "testing",
+    "description": "Add unit tests for BOM merge logic (_merge_bom_items)",
+    "steps": [
+      "Test merging new items into empty BOM",
+      "Test updating existing items with same service and region",
+      "Test keeping items separate when regions differ",
+      "Test handling multiple updates in single merge"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Add unit tests for BOM trigger conditions (should_trigger_bom_update)",
+    "steps": [
+      "Test trigger on done=true completion",
+      "Test trigger on service keyword mentions",
+      "Test trigger on every 3 turns",
+      "Test no trigger on early turns without service info"
+    ],
+    "passes": true
+  },
+  {
+    "category": "documentation",
+    "description": "Document AI evaluation framework setup and usage",
+    "steps": [
+      "Create docs/evaluation.md with setup instructions",
+      "Document how to create evaluation datasets",
+      "Document how to run evaluations",
+      "Document how to interpret results"
+    ],
+    "passes": false
+  },
+  {
+    "category": "documentation",
+    "description": "Add API documentation for web endpoints",
+    "steps": [
+      "Document all REST API endpoints in README or docs/",
+      "Include request/response schemas for each endpoint",
+      "Include example curl commands",
+      "Include error response formats"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Handle pricing lookup failures gracefully with fallback to $0.00 and error notes",
+    "steps": [
+      "Simulate pricing lookup failure for a service",
+      "Verify unit_price and monthly_cost are set to 0.00",
+      "Verify error is added to errors array",
+      "Verify proposal notes pricing unavailability"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Validate Pricing Agent output includes pricing_date in ISO 8601 format",
+    "steps": [
+      "Generate pricing for any BOM",
+      "Verify pricing_date field is present",
+      "Verify format is YYYY-MM-DD (ISO 8601)",
+      "Verify date is current or recent"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Question Agent should only ask questions required to generate a BOM and pricing",
+    "steps": [
+      "Review Question Agent instructions and remove non-essential questions",
+      "Focus questions on: workload type, services needed, SKU/tier, quantity, region",
+      "Remove or deprioritize questions about architecture patterns not affecting pricing",
+      "Test that agent reaches done=true in fewer turns (target: 5-8 turns)",
+      "Verify gathered requirements are sufficient for BOM generation"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Streamline Question Agent to prioritize pricing-relevant information",
+    "steps": [
+      "Update agent instructions to prioritize: service selection, SKU/tier, quantity, hours of operation, region",
+      "Add explicit guidance to skip deep-dive architecture questions",
+      "Test with sample conversation and verify faster completion",
+      "Verify BOM Agent can still generate accurate BOM from streamlined requirements"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Improve BOM Agent identification of services that map to Azure pricing SKUs",
+    "steps": [
+      "Review BOM Agent instructions for service name accuracy",
+      "Add mapping guidance for common service name variations to official Azure service names",
+      "Ensure SKU names match Azure Retail Prices API format",
+      "Test BOM output against Pricing Agent and verify all items get valid prices",
+      "Add validation to reject BOM items with unmappable service/SKU combinations"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "BOM Agent should validate service names match Azure pricing catalog",
+    "steps": [
+      "Add pre-submission validation step in BOM Agent",
+      "Use azure_sku_discovery tool to verify each service/SKU combination exists",
+      "Correct or flag services that don't match pricing catalog",
+      "Test with edge cases (deprecated SKUs, regional availability)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Improve BOM-to-pricing mapping accuracy for complex services",
+    "steps": [
+      "Identify services with complex pricing models (VMs, Storage, Databases)",
+      "Add specific mapping rules in BOM Agent instructions",
+      "Include meter name hints for Pricing Agent consumption",
+      "Test pricing accuracy for App Service, SQL Database, Virtual Machines, Storage Accounts"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Implement RAG-based SKU discovery in BOM Agent using Azure pricing documentation",
+    "steps": [
+      "Create or identify a knowledge base of Azure SKUs and their capabilities",
+      "Integrate RAG retrieval into BOM Agent workflow",
+      "Query knowledge base when selecting SKUs based on requirements",
+      "Verify SKU recommendations match workload requirements (size, performance tier)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Use Microsoft Learn MCP for RAG-based SKU capability lookup",
+    "steps": [
+      "Configure BOM Agent to query Microsoft Learn for SKU specifications",
+      "Search for SKU sizing guidance based on workload metrics",
+      "Use retrieved information to select appropriate SKU tier",
+      "Test SKU selection accuracy for various workload sizes"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Enhance BOM Agent with RAG to retrieve SKU pricing tiers and features",
+    "steps": [
+      "Use azure_sku_discovery MCP tool to retrieve available SKUs for each service",
+      "Parse SKU capabilities (vCPUs, memory, IOPS) from retrieved data",
+      "Match customer requirements to appropriate SKU based on capabilities",
+      "Add fallback logic when exact match is not available"
+    ],
+    "passes": false
+  }
+]
