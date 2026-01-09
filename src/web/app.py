@@ -13,6 +13,7 @@ from src.core.session import InMemorySessionStore
 from src.shared.async_utils import run_coroutine
 from src.shared.logging import setup_logging
 from src.shared.tracing import configure_tracing
+from src.shared.metrics import configure_metrics
 from src.web.interface import WebInterface
 from src.web.handlers import WebHandlers
 from src.web.session_tracing import end_session_span, get_or_create_session_span
@@ -33,6 +34,9 @@ setup_logging(
 
 # Configure OpenTelemetry traces (OTLP/gRPC) and enable Agent Framework spans.
 configure_tracing(service_name="azure-pricing-assistant-web")
+
+# Configure OpenTelemetry metrics (OTLP/gRPC)
+configure_metrics()
 
 # Resolve template directory
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))

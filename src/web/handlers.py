@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from src.web.interface import WebInterface
 from src.web.models import ChatResponse, ProposalResponse
+from src.shared.metrics import increment_chat_turns, increment_proposals_generated, increment_errors
 
 # Get logger (setup handled by application entry point)
 logger = logging.getLogger(__name__)
@@ -36,22 +37,31 @@ class WebHandlers:
             Dictionary with response, is_done, requirements_summary, bom_items, and optional error
         """
         logger.debug(f"Processing chat for session {session_id}, message length: {len(message)}")
-        result = await self.interface.chat_turn(session_id, message)
+        
+        try:
+            # Increment chat turns metric
+            increment_chat_turns(session_id)
+            
+            result = await self.interface.chat_turn(session_id, message)
 
-        # Filter out JSON blocks from the response display
-        response = result.get("response") or ""
-        if response.strip().startswith("{"):
-            # This is likely the JSON completion message - don't show it
-            response = ""
+            # Filter out JSON blocks from the response display
+            response = result.get("response") or ""
+            if response.strip().startswith("{"):
+                # This is likely the JSON completion message - don't show it
+                response = ""
 
-        return {
-            "response": response,
-            "is_done": result.get("is_done", False),
-            "requirements_summary": result.get("requirements_summary"),
-            "bom_items": result.get("bom_items", []),
-            "bom_updated": result.get("bom_updated", False),
-            "error": result.get("error"),
-        }
+            return {
+                "response": response,
+                "is_done": result.get("is_done", False),
+                "requirements_summary": result.get("requirements_summary"),
+                "bom_items": result.get("bom_items", []),
+                "bom_updated": result.get("bom_updated", False),
+                "error": result.get("error"),
+            }
+        except Exception as e:
+            logger.error(f"Error in chat handler: {e}")
+            increment_errors("chat_error", session_id)
+            raise
 
     async def handle_generate_proposal(self, session_id: str) -> Dict[str, Any]:
         """
@@ -63,16 +73,27 @@ class WebHandlers:
         Returns:
             Dictionary with bom, pricing, proposal, or error
         """
-        result = await self.interface.generate_proposal(session_id)
+        try:
+            result = await self.interface.generate_proposal(session_id)
 
-        if "error" in result:
-            return {"error": result["error"]}
+            if "error" in result:
+                increment_errors("proposal_error", session_id)
+                increment_proposals_generated(session_id, success=False)
+                return {"error": result["error"]}
 
-        return {
-            "bom": result.get("bom", ""),
-            "pricing": result.get("pricing", ""),
-            "proposal": result.get("proposal", ""),
-        }
+            # Increment successful proposal generation metric
+            increment_proposals_generated(session_id, success=True)
+
+            return {
+                "bom": result.get("bom", ""),
+                "pricing": result.get("pricing", ""),
+                "proposal": result.get("proposal", ""),
+            }
+        except Exception as e:
+            logger.error(f"Error in proposal generation handler: {e}")
+            increment_errors("proposal_error", session_id)
+            increment_proposals_generated(session_id, success=False)
+            raise
 
     async def handle_generate_proposal_stream(self, session_id: str):
         """
@@ -90,6 +111,7 @@ class WebHandlers:
         session_data = self.interface.context.session_store.get(session_id)
         if not session_data:
             logger.warning(f"No session data found for streaming proposal: {session_id}")
+            increment_errors("no_session", session_id)
             yield {"error": "No active session found"}
             return
 
@@ -107,8 +129,14 @@ class WebHandlers:
                         "message": event.message,
                         "data": event.data,
                     }
+            
+            # Increment successful proposal generation metric
+            increment_proposals_generated(session_id, success=True)
+            
         except Exception as e:
             logger.error(f"Error in proposal stream for session {session_id}: {e}")
+            increment_errors("proposal_stream_error", session_id)
+            increment_proposals_generated(session_id, success=False)
             yield {"error": str(e)}
 
     async def handle_reset(self, session_id: str) -> Dict[str, str]:

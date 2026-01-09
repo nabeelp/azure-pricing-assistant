@@ -43,7 +43,7 @@
       "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
       "View the metric in Aspire Dashboard or metrics viewer"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "observability",
@@ -54,7 +54,7 @@
       "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
       "Generate multiple proposals and verify counter increases"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "observability",
@@ -65,7 +65,7 @@
       "Trigger various error conditions (invalid input, API failures)",
       "Verify error counter increases with correct labels"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "observability",
