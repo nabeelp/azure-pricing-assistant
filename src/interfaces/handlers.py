@@ -1,7 +1,11 @@
 """Shared workflow handlers for both CLI and Web interfaces."""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+from opentelemetry.trace import SpanKind
+
+from agent_framework.observability import get_tracer
 
 from src.core.orchestrator import (
     history_to_requirements,
@@ -15,6 +19,31 @@ from .context import InterfaceContext
 
 # Get logger (setup handled by application entry point)
 logger = logging.getLogger(__name__)
+
+
+def _handler_span(operation: str, *, session_id: Optional[str] = None, **attrs: Any):
+    """Create a span for handler operations with session and operation context.
+
+    Args:
+        operation: Name of the handler operation (e.g., "chat_turn", "proposal_generation")
+        session_id: Optional session identifier for correlation
+        **attrs: Additional span attributes
+
+    Returns:
+        Context manager for the span
+    """
+    tracer = get_tracer(instrumenting_module_name="azure_pricing_assistant.handlers")
+    attributes: Dict[str, Any] = {
+        "handler.operation": operation,
+        **attrs,
+    }
+    if session_id:
+        attributes["session.id"] = session_id
+    return tracer.start_as_current_span(
+        name=f"handler.{operation}",
+        kind=SpanKind.INTERNAL,
+        attributes=attributes,
+    )
 
 
 class WorkflowHandler:
@@ -47,40 +76,45 @@ class WorkflowHandler:
                 - 'is_done': Whether requirements gathering is complete
                 - 'history': Full chat history
         """
-        if not context.validate():
-            logger.error("Context not properly initialized for chat turn")
-            return {
-                "error": "Context not properly initialized",
-                "response": "",
-                "is_done": False,
-            }
-
-        try:
-            result = await run_question_turn(
-                context.client,
-                context.session_store,
-                session_id,
-                message,
-            )
-            logger.debug(
-                f"Chat turn complete for {session_id}: is_done={result.get('is_done')}"
-            )
-            return result
-        except WorkflowError as e:
-            # Turn limit reached - trigger proposal generation UI
-            if "Maximum conversation turns" in str(e):
+        with _handler_span(
+            "chat_turn",
+            session_id=session_id,
+            message_length=len(message or ""),
+        ):
+            if not context.validate():
+                logger.error("Context not properly initialized for chat turn")
                 return {
-                    "response": str(e),
-                    "error": str(e),
-                    "is_done": True,
+                    "error": "Context not properly initialized",
+                    "response": "",
+                    "is_done": False,
                 }
-            raise
-        except Exception as e:
-            return {
-                "error": str(e),
-                "response": f"Error: {str(e)}",
-                "is_done": False,
-            }
+
+            try:
+                result = await run_question_turn(
+                    context.client,
+                    context.session_store,
+                    session_id,
+                    message,
+                )
+                logger.debug(
+                    f"Chat turn complete for {session_id}: is_done={result.get('is_done')}"
+                )
+                return result
+            except WorkflowError as e:
+                # Turn limit reached - trigger proposal generation UI
+                if "Maximum conversation turns" in str(e):
+                    return {
+                        "response": str(e),
+                        "error": str(e),
+                        "is_done": True,
+                    }
+                raise
+            except Exception as e:
+                return {
+                    "error": str(e),
+                    "response": f"Error: {str(e)}",
+                    "is_done": False,
+                }
 
     async def handle_proposal_generation(
         self,
@@ -103,38 +137,39 @@ class WorkflowHandler:
                 - 'proposal': Professional proposal Markdown
                 - 'error': Error message if applicable
         """
-        if not context.validate():
-            logger.error("Context not properly initialized for proposal generation")
-            return {"error": "Context not properly initialized"}
+        with _handler_span("proposal_generation", session_id=session_id):
+            if not context.validate():
+                logger.error("Context not properly initialized for proposal generation")
+                return {"error": "Context not properly initialized"}
 
-        session_data = context.session_store.get(session_id)
-        if not session_data:
-            logger.warning(f"No session data found for proposal generation: {session_id}")
-            return {"error": "No active session found"}
+            session_data = context.session_store.get(session_id)
+            if not session_data:
+                logger.warning(f"No session data found for proposal generation: {session_id}")
+                return {"error": "No active session found"}
 
-        try:
-            requirements = history_to_requirements(session_data.history)
-            logger.info(f"Generating proposal for session {session_id}")
+            try:
+                requirements = history_to_requirements(session_data.history)
+                logger.info(f"Generating proposal for session {session_id}")
 
-            bundle: ProposalBundle = await run_bom_pricing_proposal(
-                context.client, requirements
-            )
-            
-            logger.info(
-                f"Proposal generated for session {session_id}: "
-                f"BOM={len(bundle.bom_text)} chars, "
-                f"Pricing={len(bundle.pricing_text)} chars, "
-                f"Proposal={len(bundle.proposal_text)} chars"
-            )
+                bundle: ProposalBundle = await run_bom_pricing_proposal(
+                    context.client, requirements
+                )
 
-            return {
-                "bom": bundle.bom_text,
-                "pricing": bundle.pricing_text,
-                "proposal": bundle.proposal_text,
-            }
-        except Exception as e:
-            logger.error(f"Error generating proposal for session {session_id}: {e}")
-            return {"error": str(e)}
+                logger.info(
+                    f"Proposal generated for session {session_id}: "
+                    f"BOM={len(bundle.bom_text)} chars, "
+                    f"Pricing={len(bundle.pricing_text)} chars, "
+                    f"Proposal={len(bundle.proposal_text)} chars"
+                )
+
+                return {
+                    "bom": bundle.bom_text,
+                    "pricing": bundle.pricing_text,
+                    "proposal": bundle.proposal_text,
+                }
+            except Exception as e:
+                logger.error(f"Error generating proposal for session {session_id}: {e}")
+                return {"error": str(e)}
 
     def handle_reset_session(
         self,
