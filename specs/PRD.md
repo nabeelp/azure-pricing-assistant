@@ -25,7 +25,7 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **Capabilities**:
     -   Conduct multi-turn conversation (max 20 turns).
     -   Adapt questions based on workload type (Web, DB, AI/ML, etc.).
-    -   Use `microsoft_docs_search` MCP tool to verify service capabilities and region availability.
+    -   Use Microsoft Learn MCP tool (`MCPStreamableHTTPTool` at `https://learn.microsoft.com/api/mcp`) to verify service capabilities and region availability.
     -   **Look up recommended Azure architectures** for the workload type and base questions on architectural patterns (e.g., Azure Well-Architected Framework, reference architectures).
     -   **Ask about architecture components** such as private networking, Application Gateway, WAF, API Management, private endpoints, and other components typical of recommended architectures.
 -   **Output**: A JSON object wrapped in a ```json code block: `{ "requirements": "<summary>", "done": true }` (no extra text outside the JSON).
@@ -40,8 +40,8 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **Capabilities**:
     -   Map workloads to appropriate Azure Services (e.g., Web App -> Azure App Service).
     -   Select SKUs based on scale (Small/Basic, Medium/Standard, Large/Premium).
-    -   Use `microsoft_docs_search` MCP tool to validate Service Names and SKU identifiers.
-    -   Use `azure_sku_discovery` from Azure Pricing MCP for intelligent SKU matching.
+    -   Use Microsoft Learn MCP tool to validate Service Names and SKU identifiers.
+    -   Use Azure Pricing MCP tool (provides `azure_sku_discovery`) for intelligent SKU matching.
     -   **Update existing BOM items** when requirements change (e.g., tier upgrade from Basic to Premium).
     -   **Merge new items** with existing BOM, matching on `serviceName` + `region` for updates.
 -   **Trigger Conditions** (Incremental Mode):
@@ -86,23 +86,23 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
                 "armRegionName": "eastus",
                 "quantity": 2,
                 "hours_per_month": 730,
-                "unit_price": 0.1,
-                "monthly_cost": 146.0,
-                "notes": "Fallback to $0.00 if lookup fails"
+                "unit_price": 0.10,
+                "monthly_cost": 146.00
             }
         ],
-        "total_monthly": 292.0,
+        "total_monthly": 292.00,
         "currency": "USD",
-        "pricing_date": "2026-01-07",
+        "pricing_date": "2026-01-09",
         "savings_options": [
             {
                 "description": "Consider West US for 8% lower rate",
-                "estimated_monthly_savings": 12.0
+                "estimated_monthly_savings": 12.00
             }
         ],
         "errors": []
     }
     ```
+    -   **Note on Fallback Pricing**: When a pricing lookup fails, set `unit_price` and `monthly_cost` to `0.00` and add an error description to the `errors` array.
 
 ### 4.4. Proposal Agent (Documentation)
 -   **Role**: Sales Consultant.
@@ -170,9 +170,9 @@ All agents are implemented using `ChatAgent` from the Microsoft Agent Framework:
 
 | Agent | Tools | Purpose |
 |-------|-------|--------|
-| Question Agent | `MCPStreamableHTTPTool` (Microsoft Learn) | Gathers requirements through adaptive Q&A |
-| BOM Agent | `MCPStreamableHTTPTool` (Microsoft Learn + Azure Pricing MCP) | Maps requirements to Azure services/SKUs |
-| Pricing Agent | `MCPStreamableHTTPTool` (Azure Pricing MCP via HTTP) | Calculates costs using MCP pricing tools |
+| Question Agent | Microsoft Learn MCP (`MCPStreamableHTTPTool`) | Gathers requirements through adaptive Q&A |
+| BOM Agent | Microsoft Learn MCP + Azure Pricing MCP (`MCPStreamableHTTPTool`) | Maps requirements to Azure services/SKUs |
+| Pricing Agent | Azure Pricing MCP (`MCPStreamableHTTPTool`) | Calculates costs using MCP pricing tools |
 | Proposal Agent | None | Generates professional Markdown proposal |
 
 ### 5.5. Client Management
@@ -187,25 +187,87 @@ async with DefaultAzureCredential() as credential:
         # Run workflows
 ```
 
+### 5.6. Web API Endpoints
+The Flask web application exposes the following REST API endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Render main chat UI page |
+| `/api/chat` | POST | Handle chat message, returns response with incremental BOM updates |
+| `/api/generate-proposal` | POST | Generate full proposal (blocking) |
+| `/api/generate-proposal-stream` | GET | Generate proposal with SSE streaming progress events |
+| `/api/bom` | GET | Get current BOM items for the session |
+| `/api/history` | GET | Get chat history for the session |
+| `/api/reset` | POST | Reset chat session and clear state |
+| `/health` | GET | Health check endpoint |
+
+**SSE Progress Events** (`/api/generate-proposal-stream`):
+-   `agent_start`: Agent begins processing (includes `agent_name`)
+-   `agent_progress`: Agent emits progress text (includes `message`)
+-   `workflow_complete`: All agents complete (includes `data` with `bom`, `pricing`, `proposal`)
+-   `error`: Error occurred during processing (includes `message`)
+
 ## 6. Non-Functional Requirements
 -   **Reliability**: Agents must handle invalid inputs and API timeouts gracefully.
 -   **Accuracy**: Pricing must reflect real-time public retail rates.
 -   **Performance**: End-to-end processing (after chat) should complete within reasonable time (approx. 30-60s).
 -   **Security**: No customer credentials required; uses public pricing API. Azure CLI credentials used for Agent Service authentication.
--   **Observability**: OpenTelemetry tracing enabled for monitoring and debugging.
+-   **Observability**: Comprehensive OpenTelemetry tracing with Aspire Dashboard integration (see Section 6.1).
 -   **Testing**: Run end-to-end agent workflow tests, verify Question Agent emits `done: true` with a structured requirements summary, validate BOM JSON against schema, and test pricing agent with live MCP server at `http://localhost:8080/mcp`.
+
+### 6.1. Observability Architecture
+The application implements a layered observability approach:
+
+**Tracing:**
+-   **Agent Framework Integration**: Uses `setup_observability()` from Agent Framework for OTLP export of traces and logs.
+-   **Session Spans**: Long-lived OpenTelemetry spans per user session (CLI and Web) enabling correlation of all operations within a session.
+-   **Stage Spans**: Workflow stages (Question, BOM, Pricing, Proposal) emit individual spans via `_stage_span()` helper.
+-   **Handler Spans**: Handler operations (`chat_turn`, `proposal_generation`) emit spans via `_handler_span()` for detailed request tracing.
+-   **Span Lifecycle**: Session spans are automatically closed after proposal generation or session reset.
+
+**Logging:**
+-   **Console Logging**: Standard Python logs with `trace_id`/`span_id` correlation fields via `TraceContextFilter`.
+-   **Log Format**: `%(asctime)s - %(name)s - %(levelname)s - %(message)s [trace_id=%(trace_id)s span_id=%(span_id)s]`
+-   **Configurable Level**: `APP_LOG_LEVEL` environment variable controls verbosity (DEBUG, INFO, WARNING, ERROR).
+-   **OTLP Export**: Logs are exported to OTLP endpoint when `ENABLE_OTEL=true` and `OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`) are set.
+
+**Configuration:**
+-   `ENABLE_OTEL`: Enable/disable OpenTelemetry export (default: false). Read by Agent Framework's `setup_observability()`.
+-   `OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP collector endpoint (e.g., `http://localhost:4317`). Agent Framework reads `OTLP_ENDPOINT`; standard OTel SDK reads `OTEL_EXPORTER_OTLP_ENDPOINT`.
+-   `OTEL_EXPORTER_OTLP_TRACES_INSECURE`: Set to `true` when using HTTP (non-TLS) OTLP endpoint.
+-   `OTLP_HEADERS` or `OTEL_EXPORTER_OTLP_HEADERS`: OTLP headers for authentication (e.g., `Authorization=Bearer <token>`).
+-   `OTEL_SERVICE_NAME`: Service name for traces (defaults to `azure-pricing-assistant-web` or `azure-pricing-assistant-cli`).
+-   `APP_LOG_LEVEL`: Console log verbosity (default: INFO).
+
+**Required Environment Variables:**
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|--------|
+| `AZURE_AI_PROJECT_ENDPOINT` | Yes | — | Azure AI Foundry project endpoint |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | No | `gpt-4o-mini` | Azure AI model deployment name |
+| `AZURE_PRICING_MCP_URL` | No | `http://localhost:8080/mcp` | Azure Pricing MCP server endpoint |
+| `FLASK_SECRET_KEY` | Yes (web) | — | Flask session secret key |
+| `PORT` | No | `8000` | Local web server port |
+| `ENABLE_OTEL` | No | `false` | Enable/disable OpenTelemetry export |
+| `OTLP_ENDPOINT` | No | — | OTLP collector endpoint (Agent Framework alias) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | — | OTLP collector endpoint (standard OTel) |
+| `OTLP_HEADERS` | No | — | OTLP headers for authentication |
+| `OTEL_SERVICE_NAME` | No | `azure-pricing-assistant-*` | Service name for traces |
+| `APP_LOG_LEVEL` | No | `INFO` | Console log verbosity (DEBUG, INFO, WARNING, ERROR) |
 
 # 7. Enhancements Completed
 -   ✅ **Progressive BOM Disclosure**: Users can now see BOM items as they are identified during the conversation (Web UI displays in real-time side panel; CLI builds in background).
 -   ✅ **Incremental BOM Building**: BOM is constructed progressively during discovery stage with intelligent triggering and merge logic.
+-   ✅ **Observability Enhancements**: Comprehensive tracing and logging with session spans, stage spans, handler spans, and configurable log levels. Full OpenTelemetry integration with Aspire Dashboard support.
+-   ✅ **Progress Feedback (Partial)**: Real-time SSE-based progress updates during proposal generation via `/api/generate-proposal-stream` endpoint. Provides agent start, progress, and completion events.
 
 # 8. Planned Enhancements
 -   **Tune Questioning Strategy**: Improve adaptive questioning based on workload type and experience level.
--   **Observability Enhancements**: Add more detailed tracing and logging for each step, with log level control.
--   **Progress Feedback**: Provide real-time progress updates during processing stage.
+-   **Progress Feedback (UI)**: Integrate streaming progress feedback into the web UI for visual progress indication.
 -   **Improve Performance**: Optimize agent response times and MCP tool calls.
 -   **Incremental Pricing**: Extend incremental approach to pricing calculation during discovery.
 -   **Web Interface**: Allow for retrieval of previous proposals.
 -   **Price Citations**: Include links to Azure pricing pages in the proposal for transparency.
 -   **Testing**: Implement complete unit and integration tests for each agent and workflow stage.
 -   **AI Evaluation**: Set up evaluation framework to assess agent outputs for quality and accuracy.
+-   **Metrics**: Add OpenTelemetry metrics (counters for chat turns, proposal generations, errors).
+-   **Structured Logging**: Enhance logs with structured data using `extra={}` parameter for better querying.
