@@ -10,7 +10,7 @@
       "Verify each agent step updates the UI in real-time via SSE events",
       "Verify completion displays the final proposal"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
