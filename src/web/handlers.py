@@ -1,11 +1,15 @@
 """HTTP route handlers for Web API."""
 
 import asyncio
+import logging
 import os
 from typing import Any, Dict
 
 from src.web.interface import WebInterface
 from src.web.models import ChatResponse, ProposalResponse
+
+# Get logger (setup handled by application entry point)
+logger = logging.getLogger(__name__)
 
 
 class WebHandlers:
@@ -31,6 +35,7 @@ class WebHandlers:
         Returns:
             Dictionary with response, is_done, requirements_summary, bom_items, and optional error
         """
+        logger.debug(f"Processing chat for session {session_id}, message length: {len(message)}")
         result = await self.interface.chat_turn(session_id, message)
 
         # Filter out JSON blocks from the response display
@@ -84,12 +89,14 @@ class WebHandlers:
         # Get session data
         session_data = self.interface.context.session_store.get(session_id)
         if not session_data:
+            logger.warning(f"No session data found for streaming proposal: {session_id}")
             yield {"error": "No active session found"}
             return
 
         try:
             # Get requirements from history
             requirements = history_to_requirements(session_data.history)
+            logger.info(f"Starting proposal stream for session {session_id}")
 
             # Stream workflow events
             async with self.interface.context as ctx:
@@ -101,6 +108,7 @@ class WebHandlers:
                         "data": event.data,
                     }
         except Exception as e:
+            logger.error(f"Error in proposal stream for session {session_id}: {e}")
             yield {"error": str(e)}
 
     async def handle_reset(self, session_id: str) -> Dict[str, str]:

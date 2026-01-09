@@ -2,17 +2,20 @@
 
 import asyncio
 import json
-import os
 import logging
-from flask import Flask, render_template, request, jsonify, session, Response
+import os
 
-from agent_framework.observability import configure_otel_providers
+from flask import Flask, Response, jsonify, render_template, request, session
+
+from opentelemetry import trace
 from src.core.config import get_flask_secret, load_environment
 from src.core.session import InMemorySessionStore
 from src.shared.async_utils import run_coroutine
 from src.shared.logging import setup_logging
+from src.shared.tracing import configure_tracing
 from src.web.interface import WebInterface
 from src.web.handlers import WebHandlers
+from src.web.session_tracing import end_session_span, get_or_create_session_span
 
 # Load environment and configure Flask
 load_environment()
@@ -28,9 +31,8 @@ setup_logging(
     service_name="azure-pricing-assistant-web",
 )
 
-# Configure OpenTelemetry providers (tracing, metrics, logs)
-# This replaces the deprecated setup_observability() function
-configure_otel_providers()
+# Configure OpenTelemetry traces (OTLP/gRPC) and enable Agent Framework spans.
+configure_tracing(service_name="azure-pricing-assistant-web")
 
 # Resolve template directory
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -59,13 +61,14 @@ def chat():
     session['session_id'] = session_id
     
     user_message = data.get('message', '')
-    
-    # Run async handler in event loop
-    try:
-        result = run_coroutine(handlers.handle_chat(session_id, user_message))
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
+    session_span = get_or_create_session_span(session_id)
+    with trace.use_span(session_span, end_on_exit=False):
+        try:
+            result = run_coroutine(handlers.handle_chat(session_id, user_message))
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/generate-proposal', methods=['POST'])
@@ -76,12 +79,13 @@ def generate():
     if not session_id:
         return jsonify({'error': 'No active session'}), 400
     
-    # Run async handler in event loop
-    try:
-        result = run_coroutine(handlers.handle_generate_proposal(session_id))
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    session_span = get_or_create_session_span(session_id)
+    with trace.use_span(session_span, end_on_exit=False):
+        try:
+            result = run_coroutine(handlers.handle_generate_proposal(session_id))
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/generate-proposal-stream', methods=['GET'])
@@ -94,6 +98,11 @@ def generate_stream():
     
     def event_generator():
         """Bridge async generator to sync generator for Flask."""
+        session_span = get_or_create_session_span(session_id)
+        with trace.use_span(session_span, end_on_exit=False):
+            yield from _run_stream_generator(session_id)
+
+    def _run_stream_generator(session_id: str):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -107,6 +116,9 @@ def generate_stream():
                     yield f"data: {json.dumps(event)}\n\n"
                 except StopAsyncIteration:
                     break
+        except Exception as e:
+            # Best-effort error reporting over SSE.
+            yield f"data: {json.dumps({'event_type': 'error', 'message': str(e)})}\n\n"
         finally:
             loop.close()
     
@@ -117,10 +129,16 @@ def generate_stream():
 def reset():
     """Reset chat session."""
     session_id = session.get('session_id')
-    if session_id:
-        run_coroutine(handlers.handle_reset(session_id))
-    session.clear()
-    return jsonify({'status': 'reset'})
+    try:
+        if session_id:
+            session_span = get_or_create_session_span(session_id)
+            with trace.use_span(session_span, end_on_exit=False):
+                run_coroutine(handlers.handle_reset(session_id))
+            end_session_span(session_id)
+        session.clear()
+        return jsonify({'status': 'reset'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/history', methods=['GET'])
@@ -131,11 +149,13 @@ def history():
     if not session_id:
         return jsonify({'error': 'No active session', 'history': []}), 400
     
-    try:
-        result = run_coroutine(handlers.handle_history(session_id))
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e), 'history': []}), 500
+    session_span = get_or_create_session_span(session_id)
+    with trace.use_span(session_span, end_on_exit=False):
+        try:
+            result = run_coroutine(handlers.handle_history(session_id))
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'error': str(e), 'history': []}), 500
 
 
 @app.route('/api/bom', methods=['GET'])
@@ -146,11 +166,13 @@ def get_bom():
     if not session_id:
         return jsonify({'error': 'No active session', 'bom_items': []}), 400
     
-    try:
-        result = run_coroutine(handlers.handle_get_bom(session_id))
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e), 'bom_items': []}), 500
+    session_span = get_or_create_session_span(session_id)
+    with trace.use_span(session_span, end_on_exit=False):
+        try:
+            result = run_coroutine(handlers.handle_get_bom(session_id))
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'error': str(e), 'bom_items': []}), 500
 
 
 @app.route('/health')

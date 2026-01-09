@@ -48,9 +48,12 @@ Keep Copilot completions aligned with the PRD, schemas, orchestration rules, and
 - Avoid introducing new frameworks/libraries without PRD/owner approval.
 
 ### Observability defaults
+- Console logs: Configured via `src/shared/logging.py` with `trace_id`/`span_id` correlation fields.
+- Tracing: Agent Framework's `setup_observability()` in `src/shared/tracing.py` handles OTLP export.
 - OTLP endpoint: set `OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g., `http://localhost:4317`).
 - OTLP headers: set `OTLP_HEADERS` or `OTEL_EXPORTER_OTLP_HEADERS` for auth (e.g., `Authorization=Bearer <token>`).
-- Insecure transport allowed when endpoint is http:// (see src/shared/logging.py); use https in shared environments.
+- Insecure transport allowed when endpoint is http:// (set `OTEL_EXPORTER_OTLP_TRACES_INSECURE=true`).
+- Log level: set `APP_LOG_LEVEL` (DEBUG, INFO, WARNING, ERROR) to control console verbosity.
 
 ## Testing Expectations
 - Cover end-to-end flow: discovery termination phrase detection, BOM schema validity, pricing with MCP (and fallback), proposal formatting.

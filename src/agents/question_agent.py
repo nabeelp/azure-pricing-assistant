@@ -1,7 +1,12 @@
 """Question Agent - Gathers Azure requirements through interactive Q&A."""
 
+import logging
+
 from agent_framework import ChatAgent, MCPStreamableHTTPTool
 from agent_framework_azure_ai import AzureAIAgentClient
+
+# Get logger (setup handled by application entry point)
+logger = logging.getLogger(__name__)
 
 
 def create_question_agent(client: AzureAIAgentClient) -> ChatAgent:

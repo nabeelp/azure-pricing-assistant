@@ -1,10 +1,14 @@
 """CLI interface implementation for Azure Pricing Assistant."""
 
+import logging
 from typing import Any, Dict
 
 from src.interfaces.base import PricingInterface
 from src.interfaces.context import InterfaceContext
 from src.interfaces.handlers import WorkflowHandler
+
+# Get logger (setup handled by application entry point)
+logger = logging.getLogger(__name__)
 
 
 class CLIInterface(PricingInterface):

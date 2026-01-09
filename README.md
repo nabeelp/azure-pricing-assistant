@@ -180,7 +180,20 @@ pip install -e .[all]     # Everything
    ```bash
    docker run --rm -it -p 18888:18888 -p 4317:18889 --name aspire-dashboard mcr.microsoft.com/dotnet/aspire-dashboard:latest
    ```
+   Then set these environment variables (OTLP/gRPC traces):
+   - `ENABLE_OTEL=true`
+   - `OTLP_ENDPOINT=http://localhost:4317`
+   - `OTEL_EXPORTER_OTLP_TRACES_INSECURE=true`
+   - Optional: `OTEL_SERVICE_NAME=azure-pricing-assistant`
+   - Optional: `APP_LOG_LEVEL=DEBUG` (controls console log verbosity: DEBUG, INFO, WARNING, ERROR)
+
    Access the dashboard at http://localhost:18888 to view OpenTelemetry traces.
+
+   **Observability Architecture:**
+   - **Console logging** (`src/shared/logging.py`): Standard Python logs with `trace_id`/`span_id` correlation fields
+   - **Tracing** (`src/shared/tracing.py`): Agent Framework's `setup_observability()` configures OTLP export for both traces and logs
+   - **Session spans**: Long-lived spans per user session (CLI and Web) so all logs correlate within a session
+   - **Stage spans**: Workflow stages (Question, BOM, Pricing, Proposal) emit individual spans for detailed tracing
 
 ## Usage
 
@@ -316,8 +329,10 @@ azure-seller-assistant/
 │   │   ├── context.py             # Execution context management
 │   │   └── handlers.py            # Shared workflow handlers
 │   ├── shared/                    # Shared utilities
+│   │   ├── async_utils.py         # Async event loop utilities
 │   │   ├── errors.py              # Custom exception hierarchy
-│   │   └── logging.py             # Unified logging setup
+│   │   ├── logging.py             # Console/file logging with trace correlation
+│   │   └── tracing.py             # OpenTelemetry/Agent Framework tracing setup
 │   └── web/                       # Web interface
 │       ├── app.py                 # Flask application setup and routes
 │       ├── handlers.py            # HTTP endpoint handlers

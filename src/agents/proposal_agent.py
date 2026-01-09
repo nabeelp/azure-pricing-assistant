@@ -1,7 +1,12 @@
 """Proposal Agent - Phase 2 Implementation with professional proposal generation instructions."""
 
+import logging
+
 from agent_framework import ChatAgent
 from agent_framework_azure_ai import AzureAIAgentClient
+
+# Get logger (setup handled by application entry point)
+logger = logging.getLogger(__name__)
 
 
 def create_proposal_agent(client: AzureAIAgentClient) -> ChatAgent:
