@@ -61,12 +61,24 @@ The solution uses a two-stage orchestration pattern:
 1. **Discovery Stage**: Interactive chat with the Question Agent to gather requirements
 2. **Processing Stage**: Sequential workflow executing BOM → Pricing → Proposal agents
 
+### Key Features
+
+- **Incremental BOM Building**: As you chat with the Question Agent, the Bill of Materials is built up incrementally in the background. Services are added or updated as you provide more details about your requirements.
+- **Real-time BOM Display (Web)**: In the web interface, the BOM is displayed in a side panel that updates automatically as requirements are gathered, giving you instant visibility into the Azure services being configured.
+- **Smart BOM Triggering**: The system intelligently determines when enough information has been gathered to add or update BOM items, typically when:
+  - Specific Azure services are discussed
+  - SKUs or tiers are mentioned
+  - Every 3 conversation turns to catch accumulated information
+  - Requirements gathering is complete
+- **BOM Updates**: If you change your mind (e.g., switching from General Purpose to Business Critical database tier), the BOM Agent automatically updates the corresponding item.
+- **CLI Background Processing**: In the CLI interface, the BOM is built in the background without disrupting the conversation flow.
+
 ### Agents
 
 | Agent | Tools | Purpose |
 |-------|-------|--------|
 | **Question Agent** | Microsoft Learn MCP | Gathers requirements through adaptive Q&A (max 20 turns) |
-| **BOM Agent** | Microsoft Learn MCP + Azure Pricing MCP | Maps requirements to Azure services and SKUs |
+| **BOM Agent** | Microsoft Learn MCP + Azure Pricing MCP | Maps requirements to Azure services and SKUs (now runs incrementally during conversation) |
 | **Pricing Agent** | Azure Pricing MCP | Calculates real-time costs for each BOM item |
 | **Proposal Agent** | None | Generates professional Markdown proposal |
 

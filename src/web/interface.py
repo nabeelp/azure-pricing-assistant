@@ -74,3 +74,18 @@ class WebInterface(PricingInterface):
         """
         history_dict = self.handler.get_session_history(self.context, session_id)
         return history_dict.get("history", [])
+
+    async def get_bom_items(self, session_id: str) -> list:
+        """
+        Get current BOM items for a session.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            List of BOM items
+        """
+        session_data = self.context.session_store.get(session_id)
+        if not session_data:
+            return []
+        return session_data.bom_items or []

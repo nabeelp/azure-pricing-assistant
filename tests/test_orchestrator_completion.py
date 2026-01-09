@@ -22,12 +22,13 @@ def test_parse_structured_completion():
 
 
 def test_parse_legacy_phrase():
-    """Should fall back to legacy sentinel if JSON is absent."""
+    """Should NOT parse legacy sentinel phrases - only structured JSON is supported."""
     response = "Requirements summary here.\nWe are DONE!"
     done, requirements = parse_question_completion(response)
 
-    assert done is True
-    assert "Requirements summary" in (requirements or "")
+    # Legacy phrases are no longer supported per PRD
+    assert done is False
+    assert requirements is None
 
 
 def test_history_prefers_structured_completion():

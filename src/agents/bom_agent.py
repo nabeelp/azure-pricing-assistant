@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 def extract_json_from_response(response: str) -> str:
     """
     Extract JSON from agent response, handling markdown code blocks.
-    
+
     Args:
         response: Agent response text that may contain JSON in code blocks
-        
+
     Returns:
         Extracted JSON string
-        
+
     Raises:
         ValueError: If JSON cannot be extracted
     """
@@ -33,7 +33,7 @@ def extract_json_from_response(response: str) -> str:
         end = response.find("```", start)
         if end != -1:
             return response[start:end].strip()
-    
+
     # Try to extract from generic code block
     if "```" in response:
         start = response.find("```") + 3
@@ -44,48 +44,51 @@ def extract_json_from_response(response: str) -> str:
             if json_str.startswith("json\n"):
                 json_str = json_str[5:]
             return json_str
-    
+
     # Try to find JSON array directly
     if "[" in response and "]" in response:
         start = response.find("[")
         end = response.rfind("]") + 1
         return response[start:end].strip()
-    
+
     raise ValueError("Could not extract JSON from response")
 
 
-def validate_bom_json(bom_data: List[Dict[str, Any]]) -> None:
+def validate_bom_json(bom_data: List[Dict[str, Any]], allow_empty: bool = False) -> None:
     """
     Validate BOM JSON structure and required fields.
-    
+
     Args:
         bom_data: Parsed BOM JSON array
-        
+        allow_empty: If True, allows empty arrays (for incremental mode)
+
     Raises:
         ValueError: If validation fails
     """
     if not isinstance(bom_data, list):
         raise ValueError("BOM must be a JSON array")
-    
-    if len(bom_data) == 0:
+
+    if len(bom_data) == 0 and not allow_empty:
         raise ValueError("BOM array cannot be empty")
-    
+
     required_fields = [
-        "serviceName", "sku", "quantity", 
-        "region", "armRegionName", "hours_per_month"
+        "serviceName",
+        "sku",
+        "quantity",
+        "region",
+        "armRegionName",
+        "hours_per_month",
     ]
-    
+
     for idx, item in enumerate(bom_data):
         if not isinstance(item, dict):
             raise ValueError(f"BOM item {idx} must be an object")
-        
+
         # Check required fields
         missing_fields = [field for field in required_fields if field not in item]
         if missing_fields:
-            raise ValueError(
-                f"BOM item {idx} missing required fields: {', '.join(missing_fields)}"
-            )
-        
+            raise ValueError(f"BOM item {idx} missing required fields: {', '.join(missing_fields)}")
+
         # Validate field types
         if not isinstance(item["serviceName"], str):
             raise ValueError(f"BOM item {idx}: serviceName must be a string")
@@ -99,28 +102,27 @@ def validate_bom_json(bom_data: List[Dict[str, Any]]) -> None:
             raise ValueError(f"BOM item {idx}: armRegionName must be a string")
         if not isinstance(item["hours_per_month"], (int, float)):
             raise ValueError(f"BOM item {idx}: hours_per_month must be a number")
-        
+
         # Validate quantity is positive
         if item["quantity"] <= 0:
             raise ValueError(f"BOM item {idx}: quantity must be positive")
-        
+
         # Validate hours_per_month
         if item["hours_per_month"] <= 0 or item["hours_per_month"] > 744:
-            raise ValueError(
-                f"BOM item {idx}: hours_per_month must be between 1 and 744"
-            )
+            raise ValueError(f"BOM item {idx}: hours_per_month must be between 1 and 744")
 
 
-def parse_bom_response(response: str) -> List[Dict[str, Any]]:
+def parse_bom_response(response: str, allow_empty: bool = False) -> List[Dict[str, Any]]:
     """
     Parse and validate BOM agent response.
-    
+
     Args:
         response: Raw agent response text
-        
+        allow_empty: If True, allows empty arrays (for incremental mode)
+
     Returns:
         Validated BOM data as list of dictionaries
-        
+
     Raises:
         ValueError: If parsing or validation fails
     """
@@ -128,16 +130,16 @@ def parse_bom_response(response: str) -> List[Dict[str, Any]]:
         # Extract JSON from response
         json_str = extract_json_from_response(response)
         logger.info(f"Extracted JSON: {json_str[:200]}...")
-        
+
         # Parse JSON
         bom_data = json.loads(json_str)
-        
+
         # Validate structure and fields
-        validate_bom_json(bom_data)
-        
+        validate_bom_json(bom_data, allow_empty=allow_empty)
+
         logger.info(f"Successfully parsed and validated BOM with {len(bom_data)} items")
         return bom_data
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"JSON parsing error: {e}")
         raise ValueError(f"Invalid JSON format: {e}")
@@ -149,7 +151,7 @@ def parse_bom_response(response: str) -> List[Dict[str, Any]]:
 def create_bom_agent(client: AzureAIAgentClient) -> ChatAgent:
     """
     Create BOM Agent with Phase 2 enhanced instructions.
-    
+
     Uses intelligent prompting, Microsoft Learn MCP tool for service/SKU lookup,
     and Azure Pricing MCP's azure_sku_discovery tool for intelligent SKU matching.
     Returns structured JSON array matching BOM schema.
@@ -282,23 +284,23 @@ Example for a web app with database:
         name="Microsoft Learn",
         description="AI assistant with real-time access to official Microsoft documentation.",
         url="https://learn.microsoft.com/api/mcp",
-        chat_client=client
+        chat_client=client,
     )
-    
+
     # Get MCP URL from environment variable or use default
     mcp_url = os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
 
     azure_pricing_mcp = MCPStreamableHTTPTool(
         name="Azure Pricing",
         description="Azure Pricing MCP server providing real-time pricing data, cost estimates, region recommendations, and SKU discovery for Azure services.",
-        url=mcp_url
+        url=mcp_url,
     )
-    
+
     agent = ChatAgent(
         chat_client=client,
         tools=[microsoft_docs_search, azure_pricing_mcp],
         instructions=instructions,
-        name="bom_agent"
+        name="bom_agent",
     )
-    
+
     return agent

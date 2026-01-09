@@ -20,6 +20,8 @@ class TestWebHandlersChatEndpoint:
         mock_interface.chat_turn.return_value = {
             "response": "I'll help you estimate costs.",
             "is_done": False,
+            "bom_items": [],
+            "bom_updated": False,
             "error": None,
         }
 
@@ -28,6 +30,8 @@ class TestWebHandlersChatEndpoint:
 
         assert result["response"] == "I'll help you estimate costs."
         assert result["is_done"] is False
+        assert result["bom_items"] == []
+        assert result["bom_updated"] is False
         assert result["error"] is None
         mock_interface.chat_turn.assert_called_once_with("session1", "What are costs for a VM?")
 
@@ -54,6 +58,8 @@ class TestWebHandlersChatEndpoint:
         mock_interface.chat_turn.return_value = {
             "response": '{"requirements": "Web app", "done": true}',
             "is_done": True,
+            "bom_items": [{"serviceName": "Azure App Service", "sku": "P1v2", "quantity": 1, "region": "East US", "armRegionName": "eastus", "hours_per_month": 730}],
+            "bom_updated": True,
             "error": None,
         }
 
@@ -61,7 +67,10 @@ class TestWebHandlersChatEndpoint:
         result = await handlers.handle_chat("session1", "Done")
 
         assert result["is_done"] is True
-        assert "done" in result["response"].lower()
+        assert result["bom_items"] is not None
+        assert len(result["bom_items"]) == 1
+        # JSON response is filtered by the handler
+        assert result["response"] == ""
 
     @pytest.mark.asyncio
     async def test_handle_chat_preserves_response(self):
@@ -71,6 +80,8 @@ class TestWebHandlersChatEndpoint:
         mock_interface.chat_turn.return_value = {
             "response": original_response,
             "is_done": False,
+            "bom_items": [],
+            "bom_updated": False,
             "error": None,
         }
 
