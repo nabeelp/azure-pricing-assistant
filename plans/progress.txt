@@ -1,527 +1,67 @@
 # Progress log
 ## 2026-01-09 - OpenTelemetry Metrics Implementation
 
-**Feature**: Add OpenTelemetry metrics counters for observability
-
 **What was done**:
-- Created comprehensive metrics module `src/shared/metrics.py` with OpenTelemetry integration
-  - Configured OTLP metric exporter with gRPC transport
-  - Supports ENABLE_OTEL environment flag for enabling/disabling metrics
-  - Reads OTLP_ENDPOINT from environment (default: http://localhost:4317)
-  - Implements idempotent configuration (safe to call multiple times)
-- Defined three counter metrics:
-  1. `chat_turns_total` - Counts chat turn requests with session_id label
-  2. `proposals_generated_total` - Counts proposal generations with session_id and success labels
-  3. `errors_total` - Counts errors with error_type and optional session_id labels
-- Instrumented web application handlers (`src/web/handlers.py`):
-  - `handle_chat()` increments chat_turns_total and errors on exceptions
-  - `handle_generate_proposal()` increments proposals_generated_total with success tracking
-  - `handle_generate_proposal_stream()` increments metrics for streaming proposal generation
-- Instrumented CLI application (`src/cli/app.py`):
-  - Chat loop increments chat_turns_total for each user input
-  - Proposal workflow increments proposals_generated_total on completion
-  - Error handling increments errors_total with appropriate error types
-- Integrated metrics initialization in both web and CLI app entry points
-  - Web app: `src/web/app.py` calls `configure_metrics()` on startup
-  - CLI app: `src/cli/app.py` calls `configure_metrics()` on startup
-- Created comprehensive test suite (`tests/test_metrics.py`) with 15 tests (all passing):
-  - Configuration tests: enabled/disabled states, error handling, idempotence
-  - Increment function tests: safe when configured or not configured
-  - URL handling tests: trailing slashes, missing schemes, default endpoints
-  - All edge cases covered with proper mocking
+- Created `src/shared/metrics.py` with OTLP metric exporter (opt-in via ENABLE_OTEL=true)
+- Added three counter metrics: `chat_turns_total`, `proposals_generated_total`, `errors_total`
+- Instrumented web and CLI handlers to increment counters
+- 15 comprehensive tests (all passing), no regressions
 
-**Test coverage**:
-- 15 new tests in tests/test_metrics.py (all passing)
-- All existing web handler tests continue to pass (26 tests)
-- No regression introduced - metrics are non-blocking and fail-safe
+**Key points**: Fail-safe design, 5s export interval, uses same OTLP endpoint as traces. Requires ENABLE_OTEL=true + OTLP_ENDPOINT. Ready for Aspire Dashboard/Prometheus/Grafana.
 
-**Architecture decisions**:
-- Metrics are opt-in via ENABLE_OTEL=true environment variable
-- Uses same OTLP endpoint as traces for unified observability
-- Metric export happens every 5 seconds via PeriodicExportingMetricReader
-- Counters use attributes/labels for dimensions (session_id, error_type, success)
-- Fail-safe design: if metrics fail to configure, app continues normally
-- Global state management ensures counters are only created once
-- Increment functions check if counters exist before using them (safe to call even if metrics disabled)
+## 2026-01-09 - Streaming Progress Feedback UI (Already Complete)
 
-**Metrics available for monitoring**:
-- `chat_turns_total{session_id}` - Track conversation activity per session
-- `proposals_generated_total{session_id, success}` - Track proposal success/failure rates
-- `errors_total{error_type, session_id?}` - Track error patterns and types
-
-**Integration with observability stack**:
-- Metrics export to OTLP endpoint (e.g., Aspire Dashboard, Prometheus, Jaeger)
-- Works alongside existing trace export (Agent Framework spans)
-- Standard OpenTelemetry semantic conventions for attributes
-- Ready for production monitoring and alerting
-
-**What this enables**:
-- Real-time monitoring of application usage (chat turns, proposals generated)
-- Success/failure tracking for proposal generation workflow
-- Error rate monitoring with categorization by error type
-- Session-level attribution for debugging and analysis
-- Integration with APM tools (Aspire Dashboard, Prometheus, Grafana, Azure Monitor)
-- Foundation for SLIs/SLOs and alerting rules
-
-**Next developer notes**:
-- Metrics are exported via gRPC to OTLP endpoint - ensure endpoint is available
-- To view metrics locally: Run Aspire Dashboard or Prometheus with OTLP receiver
-- Example Aspire Dashboard: `docker run -p 4317:4317 -p 18888:18888 mcr.microsoft.com/dotnet/aspire-dashboard:latest`
-- Metrics export requires ENABLE_OTEL=true in .env file
-- Consider adding more metrics as needed:
-  - Histogram for response times (chat latency, proposal generation duration)
-  - Gauge for active sessions count
-  - Counter for BOM items generated
-  - Counter for pricing lookups (successful/failed)
-- Error types currently tracked: chat_error, proposal_error, proposal_stream_error, no_session
-- Add more granular error types as error handling evolves
-- Metrics are complementary to logs and traces - use all three for full observability
-- Future enhancement: Add exemplars linking metrics to traces for deeper investigation
-
-**Production considerations**:
-- Monitor metric cardinality - session_id labels could grow unbounded over time
-- Consider aggregating or sampling metrics if session volume is very high
-- Set up alerting rules for error_total spike detection
-- Create dashboards for proposals_generated_total trends
-- Use metrics for capacity planning (chat_turns rate indicates load)
-
-## 2026-01-09 - Streaming Progress Feedback UI (Feature Already Complete)
-
-**Feature**: Integrate streaming progress feedback into the web UI for visual progress indication during proposal generation
-
-**Discovery**:
-This feature was already fully implemented before this review. The implementation includes:
-
-**Existing implementation in src/web/templates/index.html**:
-- Complete progress indicator UI with visual steps for BOM Agent, Pricing Agent, and Proposal Agent
-- JavaScript EventSource connection to `/api/generate-proposal-stream` SSE endpoint
-- Real-time progress updates via `updateProgressStep()` function
-- Visual feedback with status classes: waiting, active (with spinner), complete (with checkmark)
-- Smooth transitions and animations for progress state changes
-- Final proposal display after workflow completion
-
-**Existing implementation in src/web/app.py**:
-- SSE endpoint `/api/generate-proposal-stream` that streams workflow events
-- Proper event formatting for Server-Sent Events protocol
-- Error handling with error events sent over SSE
-
-**Existing implementation in src/web/handlers.py**:
-- `handle_generate_proposal_stream()` async generator method
-- Yields events with: event_type, agent_name, message, data fields
-- Integrates with orchestrator's `run_bom_pricing_proposal_stream()` for real workflow events
-
-**What was done in this session**:
-- Verified the feature is fully functional by reviewing HTML, JavaScript, and backend code
-- Updated PRD to mark feature as passes: true (was incorrectly marked as false)
-- Documented discovery in progress log for future developers
-
-**Architecture verification**:
-- Backend: SSE streaming implemented with async generators
-- Frontend: EventSource API with proper event handling
-- UI/UX: Professional progress indicator with icons, spinners, and state transitions
-- Error handling: Graceful error display for connection issues or backend errors
-
-**Test status**:
-- No dedicated tests for SSE endpoint exist (separate PRD item for testing)
-- Manual verification via code review confirms implementation is complete and follows best practices
-
-**Next developer notes**:
-- The feature is production-ready from a functionality standpoint
-- Consider adding automated tests for the SSE endpoint (separate PRD task exists for this)
-- The progress indicator could be enhanced with:
-  - Estimated time remaining for each agent
-  - Percentage completion within each agent step
-  - Intermediate progress messages (e.g., "Validating 3 of 5 services...")
-  - Ability to cancel/abort proposal generation
-- Consider adding browser compatibility fallback for environments without EventSource support
-- The UI could show BOM/Pricing results as they arrive (currently only shows final proposal)
+**Discovery**: Feature already fully implemented with SSE endpoint `/api/generate-proposal-stream`, EventSource client, progress indicators with animations. Updated PRD. Consider adding tests for SSE endpoint.
 
 ## 2026-01-09 - Proposal Storage Mechanism
 
-**Feature**: Integrate streaming progress feedback into the web UI for visual progress indication during proposal generation
-
-**Discovery**:
-This feature was already fully implemented before this review. The implementation includes:
-
-**Existing implementation in src/web/templates/index.html**:
-- Complete progress indicator UI with visual steps for BOM Agent, Pricing Agent, and Proposal Agent
-- JavaScript EventSource connection to `/api/generate-proposal-stream` SSE endpoint
-- Real-time progress updates via `updateProgressStep()` function
-- Visual feedback with status classes: waiting, active (with spinner), complete (with checkmark)
-- Smooth transitions and animations for progress state changes
-- Final proposal display after workflow completion
-
-**Existing implementation in src/web/app.py**:
-- SSE endpoint `/api/generate-proposal-stream` that streams workflow events
-- Proper event formatting for Server-Sent Events protocol
-- Error handling with error events sent over SSE
-
-**Existing implementation in src/web/handlers.py**:
-- `handle_generate_proposal_stream()` async generator method
-- Yields events with: event_type, agent_name, message, data fields
-- Integrates with orchestrator's `run_bom_pricing_proposal_stream()` for real workflow events
-
-**What was done in this session**:
-- Verified the feature is fully functional by reviewing HTML, JavaScript, and backend code
-- Updated PRD to mark feature as passes: true (was incorrectly marked as false)
-- Documented discovery in progress log for future developers
-
-**Architecture verification**:
-- Backend: SSE streaming implemented with async generators
-- Frontend: EventSource API with proper event handling
-- UI/UX: Professional progress indicator with icons, spinners, and state transitions
-- Error handling: Graceful error display for connection issues or backend errors
-
-**Test status**:
-- No dedicated tests for SSE endpoint exist (separate PRD item for testing)
-- Manual verification via code review confirms implementation is complete and follows best practices
-
-**Next developer notes**:
-- The feature is production-ready from a functionality standpoint
-- Consider adding automated tests for the SSE endpoint (separate PRD task exists for this)
-- The progress indicator could be enhanced with:
-  - Estimated time remaining for each agent
-  - Percentage completion within each agent step
-  - Intermediate progress messages (e.g., "Validating 3 of 5 services...")
-  - Ability to cancel/abort proposal generation
-- Consider adding browser compatibility fallback for environments without EventSource support
-- The UI could show BOM/Pricing results as they arrive (currently only shows final proposal)
-
-## 2026-01-09 - Proposal Storage Mechanism
-
-**Feature**: Add proposal storage mechanism to persist generated proposals
-
 **What was done**:
-- Added `proposal` field to SessionData model in src/core/models.py to store ProposalBundle
-- Modified `handle_proposal_generation()` in src/interfaces/handlers.py to store generated proposals in session
-- Added `get_stored_proposal()` method to WorkflowHandler class for retrieving stored proposals
-- Added abstract method `get_stored_proposal()` to PricingInterface base class in src/interfaces/base.py
-- Implemented `get_stored_proposal()` in WebInterface (src/web/interface.py) and CLIInterface (src/cli/interface.py)
-- Added `handle_get_proposal()` method to WebHandlers class in src/web/handlers.py
-- Added new API endpoint `/api/proposal` (GET) in src/web/app.py to retrieve stored proposals
-- Created comprehensive test suite in tests/test_proposal_storage.py with 12 tests (7 passing core tests)
-- All existing tests pass (26 web handler tests) - no regression
+- Added `proposal` field to SessionData model for storing ProposalBundle
+- Implemented storage in `handle_proposal_generation()` and retrieval via `get_stored_proposal()`
+- Added GET `/api/proposal` endpoint for current session proposal
+- 7 core tests passing, all existing tests pass
 
-**Test coverage**:
-- test_session_data_has_proposal_field: Verifies SessionData has proposal field
-- test_session_data_stores_proposal_bundle: Verifies SessionData can store ProposalBundle
-- test_web_interface_has_get_stored_proposal_method: Verifies WebInterface has retrieval method
-- test_web_interface_get_stored_proposal: Tests proposal retrieval through WebInterface
-- test_web_handlers_has_handle_get_proposal_method: Verifies WebHandlers has handler method
-- test_web_handlers_handle_get_proposal: Tests proposal retrieval through handlers
-- test_web_handlers_handle_get_proposal_no_proposal: Tests error handling for missing proposal
-
-**API endpoints added**:
-- GET /api/proposal: Retrieves stored proposal for current session
-  - Returns: {bom, pricing, proposal} or {error}
-  - Requires active session
-
-**Architecture decisions**:
-- Proposal is stored in SessionData after successful generation
-- Storage happens automatically in handle_proposal_generation
-- Retrieval is non-destructive (proposal remains in session)
-- Uses existing session store (InMemorySessionStore for dev)
-- Proposal field is optional (None by default) to maintain backward compatibility
-- Error handling for missing sessions and missing proposals
-
-**Next developer notes**:
-- Proposals are currently stored in memory only (lost on server restart)
-- For production, consider implementing persistent storage (database, Redis, Azure Storage)
-- Session cleanup should also clean up stored proposals to prevent memory leaks
-- Consider adding proposal history (list of proposals per session) if needed
-- The /api/proposal endpoint enables building UI features like "View Last Proposal"
-- This feature unblocks the "Add web interface endpoint to retrieve previous proposals" feature
-- Could add timestamp and version tracking to proposals for audit trail
+**Key points**: Proposals stored in-memory (lost on restart). For production: use persistent storage (DB/Redis/Azure Storage).
 
 ## 2026-01-09 - BOM Validation Against Pricing Catalog
 
-**Feature**: BOM Agent should validate service names match Azure pricing catalog
+**What was done**:
+- Added `validate_bom_against_pricing_catalog()` in `src/agents/bom_agent.py`
+- Uses azure_sku_discovery MCP tool, returns structured validation results
+- Fail-open approach (assumes valid on errors)
+- 5 unit tests + 2 live integration tests (all passing)
+
+**Key points**: Validation available but NOT integrated into orchestrator. Consider adding validation step after BOM finalization.
+
+## 2026-01-09 - Health Endpoint Tests
+
+**What was done**: Added 3 tests for `/health` endpoint (HTTP 200, JSON {"status": "healthy"}, <100ms response). All passing.
+
+## 2026-01-09 - Retrieve All Proposals Endpoint
 
 **What was done**:
-- Added `validate_bom_against_pricing_catalog()` async function in src/agents/bom_agent.py
-- Added helper function `validate_bom_item()` for validating individual BOM items
-- Function creates a temporary validation agent that uses azure_sku_discovery MCP tool
-- Validates each BOM item's service name and SKU against Azure pricing catalog
-- Returns structured validation results: valid_items, invalid_items, warnings
-- Implements fail-open approach: on validation errors, items are assumed valid to not block workflow
-- Exported validation function from src/agents/__init__.py for external use
-- Created comprehensive test file tests/test_bom_validation.py with 5 unit tests + 2 live integration tests
-- All unit tests pass (using mocks for isolated testing)
-- All existing BOM agent tests still pass (25 tests) - no regression
-- Updated PRD: Marked BOM validation feature as passing
+- Added `get_all_with_proposals()` to InMemorySessionStore
+- Added GET `/api/proposals` endpoint (returns all proposals across sessions)
+- 12 tests + 3 integration workflow tests (all passing)
 
-**Test coverage**:
-- test_validation_with_valid_items: Validates BOM items that exist in catalog
-- test_validation_with_invalid_items: Detects invalid service/SKU combinations
-- test_validation_with_mixed_items: Handles mix of valid and invalid items
-- test_validation_handles_errors_gracefully: Fail-open on MCP errors
-- test_validation_with_empty_bom: Handles edge case of empty BOM
-- Live tests available with RUN_LIVE_BOM_VALIDATION=1 environment variable
-
-**Architecture decisions**:
-- Validation is separate from BOM generation (can be called optionally)
-- Uses same MCP tools as BOM agent for consistency
-- Returns detailed validation results rather than just pass/fail
-- Fail-open approach prevents blocking workflow on transient MCP issues
-- Structured return format allows callers to decide how to handle invalid items
-
-**Next developer notes**:
-- This validation function is now available but NOT yet integrated into the orchestration workflow
-- To use: Import validate_bom_against_pricing_catalog and call after BOM generation
-- Consider adding validation step in orchestrator.py after BOM finalization
-- Consider adding UI feedback for validation results in web interface
-- Invalid items could be logged, corrected automatically, or presented to user
-- Live tests require Azure Pricing MCP server running at AZURE_PRICING_MCP_URL
-- The azure_sku_discovery tool provides fuzzy matching - may be lenient with invalid service names
-
-## 2026-01-09 - Health Endpoint Tests Added
-
-**Feature**: Add tests for web API endpoint /health
-
-**What was done**:
-- Added 3 comprehensive tests for the /health endpoint in tests/test_web_handlers.py:
-  1. test_health_returns_200 - Validates HTTP 200 OK response
-  2. test_health_returns_healthy_status - Validates JSON response contains {"status": "healthy"}
-  3. test_health_responds_quickly - Ensures response time < 100ms
-- All tests pass (26 total in test_web_handlers.py, including 3 new health tests)
-- Tests use Flask test client for isolated endpoint testing
-- Updated PRD: Marked health endpoint tests task as passing
-
-**What was discovered**:
-- BOM merge logic tests (_merge_bom_items) already exist in test_incremental_bom.py and pass (5 tests)
-- BOM trigger condition tests (should_trigger_bom_update) already exist in test_incremental_bom.py and pass (6 tests)
-- Both features were already complete - marked them as passing in PRD
-
-**Next developer notes**:
-- Health endpoint is simple but critical for monitoring/deployment readiness checks
-- Consider adding health checks that validate Azure AI client connectivity (if needed for production readiness)
-- test_web_handlers.py now has comprehensive coverage of all major endpoints except SSE streaming
-## 2026-01-09 - Web Interface Endpoint to Retrieve All Proposals
-
-**Feature**: Add web interface endpoint to retrieve previous proposals
-
-**What was done**:
-- Added get_all_with_proposals() method to InMemorySessionStore in src/core/session.py
-  - Returns dictionary mapping session_id to SessionData for sessions with stored proposals
-  - Filters out sessions without proposals to only return relevant data
-- Added handle_get_all_proposals() method to WebHandlers class in src/web/handlers.py
-  - Retrieves all proposals across all sessions via session store
-  - Returns structured response with proposals array and count
-  - Includes error handling for graceful failure scenarios
-- Added new API endpoint `/api/proposals` (GET) in src/web/app.py
-  - No session required (retrieves proposals from all sessions)
-  - Returns JSON with proposals array, each containing session_id, bom, pricing, proposal
-  - Includes count field for total number of proposals
-- Created comprehensive test suite in tests/test_proposals_endpoint.py with 12 tests (all passing)
-- Created integration workflow tests in tests/test_retrieve_proposals_workflow.py with 3 tests (all passing)
-- All existing tests pass (26 web handler tests, 12 proposal endpoint tests) - no regression
-
-**Test coverage**:
-- test_get_all_proposals_returns_200: Validates HTTP 200 OK response
-- test_get_all_proposals_returns_correct_count: Validates count field accuracy
-- test_get_all_proposals_contains_session_ids: Ensures session IDs are included
-- test_get_all_proposals_contains_proposal_data: Validates complete proposal structure
-- test_get_all_proposals_with_empty_store: Tests empty store behavior
-- test_get_all_proposals_excludes_sessions_without_proposals: Ensures filtering works
-- Session store method tests (3 tests) for get_all_with_proposals()
-- WebHandlers method tests (3 tests) for handle_get_all_proposals()
-- Integration workflow tests (3 tests) for multi-session proposal scenarios
-
-**API endpoint added**:
-- GET /api/proposals: Retrieves all stored proposals across all sessions
-  - Returns: {proposals: [{session_id, bom, pricing, proposal}, ...], count: number}
-  - No authentication or session required (dev environment)
-  - Error handling: {error: string, proposals: [], count: 0}
-
-**Architecture decisions**:
-- Endpoint retrieves proposals from all sessions (not just current session)
-- Uses existing InMemorySessionStore for consistency with storage mechanism
-- Proposals remain in session store (non-destructive retrieval)
-- Returns session_id with each proposal for future reference/deletion features
-- Empty proposal list returns 200 OK with empty array (not an error)
-- Filter logic at storage layer (get_all_with_proposals) keeps handler simple
-
-**What this enables**:
-- Web UI can now display a list of all previously generated proposals
-- Users can view proposal history across multiple sessions
-- Foundation for proposal management features (delete, update, export)
-- Supports building a proposals gallery or history page
-- Enables comparison between different proposals
-
-**Next developer notes**:
-- Proposals are stored in-memory only (lost on server restart)
-- For production, implement persistent storage (database, Redis, Azure Storage)
-- Consider adding pagination for /api/proposals if count grows large
-- Could add query parameters: ?limit=10&offset=0 for pagination
-- Could add filtering: ?session_id=xxx or ?date_from=xxx
-- Consider adding DELETE /api/proposals/:session_id to remove old proposals
-- Could add PUT /api/proposals/:session_id to update proposals
-- Session cleanup should also clean up stored proposals to prevent memory leaks
-- The endpoint currently has no authentication - add auth for production
-- Consider adding timestamps to proposals for sorting/filtering by date
-- Could enhance response with metadata: created_at, session_duration, service_count, total_cost
-- Integration with web UI: Create a 'View All Proposals' page or sidebar panel
-
-
+**Key points**: Returns {proposals: [{session_id, bom, pricing, proposal}...], count}. In-memory only. For production: add persistence, pagination, auth.
 
 ## 2026-01-09 - Azure Pricing Links in Proposals
 
-**Feature**: Include links to Azure pricing pages in the proposal for transparency
+**What was done**:
+- Created `src/shared/azure_pricing_urls.py` with 50+ service-to-URL mappings
+- Updated Proposal Agent instructions to include pricing links in Cost Breakdown table
+- 28 comprehensive tests (all passing)
+
+**Key points**: Links format `[Service](https://azure.microsoft.com/pricing/details/{service}/)`. Fallback to pricing calculator for unknown services.
+
+## 2026-01-09 - Web UI Error Handling
 
 **What was done**:
-- Created new utility module `src/shared/azure_pricing_urls.py` with comprehensive Azure service to pricing URL mappings
-- Added `get_pricing_url_for_service()` function that maps 50+ Azure services to their official pricing pages
-- Added `format_service_with_pricing_link()` function that formats service names as markdown links
-- Includes alternate service names (e.g., both 'SQL Database' and 'Azure SQL Database')
-- Fallback to Azure pricing calculator for unknown services
-- Updated Proposal Agent instructions in `src/agents/proposal_agent.py` to require pricing links
-- Modified Cost Breakdown table format to show service names as clickable markdown links
-- Added explicit examples of pricing link format in agent instructions
-- Instructions specify using format: `[Service Name](https://azure.microsoft.com/pricing/details/{service}/)`
+- Added error banner (dismissible, auto-hide 10s) and inline error messages with retry buttons
+- Enhanced error handling for chat, proposal generation (SSE), and session reset
+- Network vs server error differentiation, user-friendly messages
+- 21 comprehensive tests (all passing), no regressions
 
-**Test coverage**:
-- Created `tests/test_pricing_urls.py` with 19 comprehensive tests (all passing)
-  - TestPricingURLMapping: 10 tests for URL mapping accuracy
-  - TestPricingLinkFormatting: 5 tests for markdown link formatting
-  - TestServiceMappingCoverage: 4 tests for mapping completeness and URL quality
-- Created `tests/test_proposal_pricing_links.py` with 9 comprehensive tests (all passing)
-  - TestProposalAgentInstructions: 3 tests verifying pricing link guidance in instructions
-  - TestProposalLinkFormatRequirements: 3 tests for HTTPS and URL format requirements
-  - TestProposalPricingLinkContent: 1 test for table format expectations
-  - TestProposalPricingURLUtility: 2 tests for utility module existence and coverage
-- All existing tests continue to pass (190 passed, 1 pre-existing failure, 2 skipped)
-
-**Architecture decisions**:
-- Centralized service-to-URL mapping in dedicated utility module for maintainability
-- Supports both canonical and alternate service names for flexibility
-- Graceful fallback to pricing calculator for unmapped services
-- HTTPS-only URLs pointing to official Azure domains
-- Pricing links embedded directly in Cost Breakdown table for easy access
-- Agent instructions include multiple examples to guide proper link generation
-
-**Service coverage**:
-The utility module includes pricing URLs for 50+ Azure services including:
-- Compute: Virtual Machines, App Service, Azure Functions, AKS, Container Instances
-- Data: SQL Database, Cosmos DB, Storage Accounts, Blob Storage, Data Lake Storage
-- Networking: Load Balancer, Application Gateway, Front Door, CDN, VPN Gateway
-- Developer tools: Azure DevOps, API Management, Logic Apps
-- AI/ML: Machine Learning, Cognitive Services, Databricks, Synapse Analytics
-- Infrastructure: Key Vault, Monitor, Log Analytics
-
-**What this enables**:
-- Proposal recipients can directly navigate to Azure pricing pages for any service
-- Transparent pricing allows customers to verify costs independently
-- Builds trust by providing authoritative pricing sources
-- Enables customers to explore pricing tiers, reserved instances, and savings plans
-- Improves proposal professionalism and credibility
-
-**Next developer notes**:
-- The Proposal Agent now has instructions to include pricing links, but actual link generation depends on the LLM following instructions
-- Consider adding post-processing to automatically inject links if the agent doesn't include them
-- The utility module can be expanded with more Azure services as needed
-- Consider adding SKU-specific deep links (e.g., direct link to specific VM size)
-- Could add link validation to ensure URLs remain valid over time
-- For development: Test proposal generation with live Azure credentials to verify agent follows link instructions
-- The service mapping may need updates as Azure services are renamed or pricing pages change
-- Consider adding region-specific pricing links if Azure provides those URLs
-- Could enhance with pricing comparison tables for different regions
-- Future enhancement: Add pricing API integration to embed actual prices directly in markdown
-
-## 2026-01-09 - Web UI Error Handling Implementation
-
-**Feature**: Display error messages for failed API calls in web UI
-
-**What was done**:
-- Added comprehensive error handling UI to `src/web/templates/index.html`:
-  - **Error banner component**: Dismissible top banner for critical errors with slide-down animation
-  - **Inline error messages**: Context-aware error cards with icons, titles, details, and retry buttons
-  - **Error utilities**: JavaScript functions for showing/hiding errors and managing retry state
-  - **Network error detection**: Differentiated handling for HTTP errors vs network failures
-  - **User-friendly messages**: Clear, actionable error descriptions instead of raw error text
-  
-- Enhanced chat error handling:
-  - HTTP 500 errors are caught and displayed with server status codes
-  - Network errors (fetch failures) are identified and shown with connection guidance
-  - JSON parsing errors are handled gracefully
-  - Added retry capability that preserves last message for re-submission
-  - Errors shown both as banner (auto-dismissing) and inline message (persistent)
-  
-- Enhanced proposal generation error handling:
-  - SSE connection errors display with retry and back-to-chat options
-  - EventSource error event handling with connection loss detection
-  - Graceful error display within proposal view with structured error messages
-  - Server errors during proposal generation shown with clear error details
-  
-- Enhanced session reset error handling:
-  - Network errors during reset are caught and displayed
-  - Failed resets don't leave UI in inconsistent state
-  - Error banner cleared on successful reset
-  
-- Added visual feedback:
-  - Error banner: Red background, white text, dismissible with × button
-  - Error messages: Red border, light red background, warning icons
-  - Retry buttons: Red theme matching error context
-  - Animations: Smooth slide-down for error banner, no jarring transitions
-
-**Test coverage**:
-- Created comprehensive test suite `tests/test_ui_error_handling.py` with 21 tests (all passing)
-  - TestChatErrorHandling: 3 tests for chat endpoint error scenarios
-  - TestProposalGenerationErrorHandling: 3 tests for proposal generation errors
-  - TestResetErrorHandling: 2 tests for reset endpoint errors
-  - TestHandlerErrorHandling: 3 tests for handler-level error propagation
-  - TestHTMLErrorElements: 3 tests verifying error UI elements exist
-  - TestErrorMessageFormatting: 3 tests for error message structure
-  - TestErrorHandlingIntegration: 2 tests for complete error workflows
-  - TestErrorBannerBehavior: 2 tests for banner display and animation
-- All existing tests continue to pass (26 web handler tests)
-- No regressions introduced
-
-**Architecture decisions**:
-- Client-side error handling with progressive enhancement
-- Errors displayed both ephemerally (banner) and persistently (inline messages)
-- Retry capability preserves user context (last message) for convenience
-- Error messages are structured: icon + title + detail + optional actions
-- Banner auto-dismisses after 10 seconds to avoid cluttering UI
-- Network errors differentiated from server errors for better troubleshooting
-- SSE errors handled specially since they can't use standard HTTP error codes
-- All errors logged to console for debugging while showing user-friendly messages
-
-**User experience improvements**:
-- **Before**: Errors showed as plain text in chat or generic "Error occurred" message
-- **After**: 
-  - Clear visual distinction between error types (network vs server)
-  - Actionable guidance ("check your connection", "try again")
-  - Retry button preserves context so users don't need to retype messages
-  - Dismissible banner for transient errors
-  - Persistent inline errors for review
-  - Professional error presentation matching overall UI theme
-
-**Error types now handled**:
-1. Chat API errors (HTTP 500, network failures, timeout)
-2. Proposal generation errors (SSE connection loss, server errors, validation failures)
-3. Session reset errors (network issues, server errors)
-4. JSON parsing errors (malformed responses)
-5. EventSource errors (connection interruptions)
-
-**What this enables**:
-- Users can recover from errors without losing context
-- Clear indication when issues are network-related vs server-related
-- Retry functionality reduces friction when transient errors occur
-- Error banner provides immediate feedback without disrupting workflow
-- Inline errors provide detailed context for debugging or support requests
-- Professional error handling builds user trust and reduces frustration
-
-**Next developer notes**:
-- Error messages are currently generic - consider adding specific error codes for better debugging
-- Could add error analytics/telemetry to track error frequency and types
-- Consider adding "Report Issue" button in error messages for user feedback
-- Could implement exponential backoff for retries on network errors
-- May want to add toast notifications for non-critical warnings
-- Error banner auto-dismiss timing (10s) could be made configurable
-- Consider adding error recovery suggestions based on error type (e.g., "Check Azure credentials" for auth errors)
-- Could add a global error handler for uncaught promise rejections
-- Consider implementing request retry logic at the API client level
-- May want to add error state persistence across page refreshes for better UX
-- Test manually with live backend to verify error messages are helpful in real scenarios
-- Consider adding Sentry or similar error tracking for production monitoring
+**Key points**: Retry preserves last message. Errors shown as banner (ephemeral) + inline (persistent). Professional UX with icons, animations, actionable guidance.
 
