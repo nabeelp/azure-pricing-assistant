@@ -33,10 +33,14 @@ class WebInterface(PricingInterface):
         """
         async with self.context as ctx:
             result = await self.handler.handle_chat_turn(ctx, session_id, message)
-            # Remove history from web responses (optional - only if needed for bandwidth)
+            # Return all relevant fields including BOM info
             return {
                 "response": result.get("response", ""),
                 "is_done": result.get("is_done", False),
+                "requirements_summary": result.get("requirements_summary"),
+                "bom_items": result.get("bom_items", []),
+                "bom_updated": result.get("bom_updated", False),
+                "bom_update_in_progress": result.get("bom_update_in_progress", False),
                 "error": result.get("error"),
             }
 
@@ -89,3 +93,17 @@ class WebInterface(PricingInterface):
         if not session_data:
             return []
         return session_data.bom_items or []
+
+    async def get_bom_status(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get current BOM items and update task status for a session.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with bom_items, update_in_progress, and update_completed
+        """
+        from src.core.orchestrator import get_bom_update_status
+        
+        return get_bom_update_status(self.context.session_store, session_id)

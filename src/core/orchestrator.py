@@ -1,5 +1,6 @@
 """Shared orchestration helpers for CLI and web interfaces."""
 
+import asyncio
 import json
 import logging
 import re
@@ -83,7 +84,7 @@ async def run_question_turn(
     if enable_incremental_bom and should_trigger_bom_update(
         response_text, session_data.turn_count, session_data.history
     ):
-        logger.info(f"Triggering incremental BOM update for session {session_id}")
+        logger.info(f"Triggering parallel BOM update for session {session_id}")
 
         # Build recent context from last few exchanges
         recent_history = (
@@ -91,17 +92,29 @@ async def run_question_turn(
         )
         recent_context = "\n".join(f"{msg['role']}: {msg['content']}" for msg in recent_history)
 
-        # Run BOM update in background
-        bom_result = await run_incremental_bom_update(
-            client, session_store, session_id, recent_context
-        )
+        # Cancel existing BOM update task if still running
+        if session_data.bom_update_task and not session_data.bom_update_task.done():
+            logger.info(f"Cancelling previous BOM update task for session {session_id}")
+            session_data.bom_update_task.cancel()
 
-        result["bom_items"] = bom_result.get("bom_items", [])
-        result["bom_updated"] = True
+        # Launch BOM update in background (fire-and-forget)
+        task = asyncio.create_task(
+            _run_bom_update_background(client, session_store, session_id, recent_context)
+        )
+        
+        # Store task reference in session
+        session_data.bom_update_task = task
+        session_store.set(session_id, session_data)
+        
+        # Return current BOM items immediately without waiting
+        result["bom_items"] = session_data.bom_items or []
+        result["bom_updated"] = False  # Not yet updated, but task is running
+        result["bom_update_in_progress"] = True
     else:
         # Return current BOM items without update
         result["bom_items"] = session_data.bom_items or []
         result["bom_updated"] = False
+        result["bom_update_in_progress"] = False
 
     return result
 
@@ -279,6 +292,48 @@ async def run_bom_pricing_proposal_stream(
             message=f"Error: {str(e)}",
             data={"error": str(e)},
         )
+
+
+async def _run_bom_update_background(
+    client: AzureAIAgentClient,
+    session_store: InMemorySessionStore,
+    session_id: str,
+    recent_context: str,
+) -> None:
+    """
+    Background task wrapper for BOM updates.
+    
+    Runs BOM update in background and updates session when complete.
+    Handles errors gracefully without affecting main conversation flow.
+    
+    Args:
+        client: Azure AI Agent client
+        session_store: Session store for persisting BOM items
+        session_id: Current session ID
+        recent_context: Recent conversation context to analyze
+    """
+    try:
+        logger.info(f"[Background] Starting BOM update for session {session_id}")
+        result = await run_incremental_bom_update(client, session_store, session_id, recent_context)
+        
+        # Update session to clear the task reference
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.bom_update_task = None
+            session_store.set(session_id, session_data)
+        
+        if "error" in result:
+            logger.warning(f"[Background] BOM update completed with error: {result['error']}")
+        else:
+            logger.info(f"[Background] BOM update completed successfully: {len(result.get('bom_items', []))} items")
+    
+    except Exception as e:
+        logger.error(f"[Background] BOM update failed with exception: {e}")
+        # Clear task reference even on error
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.bom_update_task = None
+            session_store.set(session_id, session_data)
 
 
 async def run_incremental_bom_update(
@@ -493,6 +548,46 @@ def should_trigger_bom_update(
         )
 
     return should_trigger
+
+
+def get_bom_update_status(
+    session_store: InMemorySessionStore, session_id: str
+) -> Dict[str, Any]:
+    """
+    Get current BOM items and update task status.
+    
+    Args:
+        session_store: Session store
+        session_id: Session identifier
+        
+    Returns:
+        Dict with bom_items, update_in_progress, and update_completed flags
+    """
+    session_data = session_store.get(session_id)
+    if not session_data:
+        return {
+            "bom_items": [],
+            "update_in_progress": False,
+            "update_completed": False,
+        }
+    
+    # Check if task is running
+    task_running = (
+        session_data.bom_update_task is not None 
+        and not session_data.bom_update_task.done()
+    )
+    
+    # Check if task recently completed (will be None after completion)
+    task_completed = (
+        session_data.bom_update_task is not None
+        and session_data.bom_update_task.done()
+    )
+    
+    return {
+        "bom_items": session_data.bom_items or [],
+        "update_in_progress": task_running,
+        "update_completed": task_completed,
+    }
 
 
 def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:

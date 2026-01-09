@@ -399,6 +399,41 @@
 
     <script>
         let isDone = false;
+        let bomPollInterval = null;
+
+        // Start polling for BOM updates
+        function startBOMPolling() {
+            if (bomPollInterval) {
+                return; // Already polling
+            }
+            
+            bomPollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/bom');
+                    const data = await response.json();
+                    
+                    if (data.bom_items && data.bom_items.length > 0) {
+                        updateBOM(data.bom_items, data.update_completed || false);
+                    }
+                    
+                    // Stop polling if no update is in progress
+                    if (!data.update_in_progress) {
+                        // Keep polling in case another update starts
+                        // Could optimize to stop completely when done
+                    }
+                } catch (error) {
+                    console.error('Error polling BOM:', error);
+                }
+            }, 2000); // Poll every 2 seconds
+        }
+
+        // Stop polling for BOM updates
+        function stopBOMPolling() {
+            if (bomPollInterval) {
+                clearInterval(bomPollInterval);
+                bomPollInterval = null;
+            }
+        }
 
         async function sendMessage() {
             const input = document.getElementById('userInput');
@@ -439,10 +474,17 @@
                         updateBOM(data.bom_items, data.bom_updated || false);
                     }
                     
+                    // Start BOM polling if update is in progress
+                    if (data.bom_update_in_progress) {
+                        startBOMPolling();
+                    }
+                    
                     if (data.is_done) {
                         // Show friendly summary with confirmation
                         const summary = data.requirements_summary || 'Requirements gathering complete';
                         displayRequirementsSummary(summary);
+                        // Stop BOM polling when done
+                        stopBOMPolling();
                     }
                 }
             } catch (error) {
@@ -660,6 +702,9 @@
                 return;
             }
             
+            // Stop BOM polling
+            stopBOMPolling();
+            
             try {
                 await fetch('/api/reset', {
                     method: 'POST'
@@ -698,9 +743,11 @@
             }
         }
 
-        // Initial greeting
+        // Initial greeting and start BOM polling
         window.addEventListener('DOMContentLoaded', () => {
             addMessage('assistant', "Hello! I'll help you price an Azure solution. Let's start!");
+            // Start BOM polling in case there's an active session
+            startBOMPolling();
         });
     </script>
 </body>

@@ -45,6 +45,7 @@ class WebHandlers:
             "requirements_summary": result.get("requirements_summary"),
             "bom_items": result.get("bom_items", []),
             "bom_updated": result.get("bom_updated", False),
+            "bom_update_in_progress": result.get("bom_update_in_progress", False),
             "error": result.get("error"),
         }
 
@@ -137,7 +138,7 @@ class WebHandlers:
             session_id: Unique session identifier
 
         Returns:
-            Dictionary with current BOM items
+            Dictionary with current BOM items and update status
         """
-        bom_items = await self.interface.get_bom_items(session_id)
-        return {"bom_items": bom_items}
+        bom_status = await self.interface.get_bom_status(session_id)
+        return bom_status
