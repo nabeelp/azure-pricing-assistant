@@ -4,7 +4,8 @@ import asyncio
 import logging
 import os
 
-from agent_framework.observability import get_tracer, configure_otel_providers
+from agent_framework.observability import get_tracer
+from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 
 from src.core.config import load_environment
@@ -24,6 +25,7 @@ from src.cli.prompts import (
 from src.shared.async_utils import create_event_loop
 from src.shared.errors import WorkflowError
 from src.shared.logging import setup_logging
+from src.shared.tracing import configure_tracing
 
 
 async def run_cli_workflow() -> None:
@@ -165,23 +167,33 @@ async def main() -> None:
         service_name="azure-pricing-assistant-cli",
     )
 
-    # Configure OpenTelemetry providers (tracing, metrics, logs)
-    # This replaces the deprecated setup_observability() function
-    configure_otel_providers()
+    # Configure OpenTelemetry traces (OTLP/gRPC) and enable Agent Framework spans.
+    configure_tracing(service_name="azure-pricing-assistant-cli")
 
     print("Azure Pricing Assistant")
     print("=" * 60)
 
+    tracer = get_tracer(instrumenting_module_name="azure_pricing_assistant.session")
+
     try:
-        with get_tracer().start_as_current_span(
-            "Azure Pricing Assistant", kind=SpanKind.CLIENT
-        ):
+        # Single long-lived span so all CLI logs correlate.
+        session_span = tracer.start_span(
+            name="session.cli",
+            kind=SpanKind.CLIENT,
+            attributes={"session.id": "cli-session", "session.type": "cli"},
+        )
+        with trace.use_span(session_span, end_on_exit=False):
             await run_cli_workflow()
     except Exception as e:
         print_error(str(e))
         import traceback
 
         traceback.print_exc()
+    finally:
+        try:
+            session_span.end()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

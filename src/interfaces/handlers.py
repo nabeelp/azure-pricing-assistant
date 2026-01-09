@@ -1,5 +1,6 @@
 """Shared workflow handlers for both CLI and Web interfaces."""
 
+import logging
 from typing import Any, Dict
 
 from src.core.orchestrator import (
@@ -11,6 +12,9 @@ from src.core.orchestrator import (
 from src.core.models import ProposalBundle
 from src.shared.errors import WorkflowError
 from .context import InterfaceContext
+
+# Get logger (setup handled by application entry point)
+logger = logging.getLogger(__name__)
 
 
 class WorkflowHandler:
@@ -44,6 +48,7 @@ class WorkflowHandler:
                 - 'history': Full chat history
         """
         if not context.validate():
+            logger.error("Context not properly initialized for chat turn")
             return {
                 "error": "Context not properly initialized",
                 "response": "",
@@ -51,12 +56,16 @@ class WorkflowHandler:
             }
 
         try:
-            return await run_question_turn(
+            result = await run_question_turn(
                 context.client,
                 context.session_store,
                 session_id,
                 message,
             )
+            logger.debug(
+                f"Chat turn complete for {session_id}: is_done={result.get('is_done')}"
+            )
+            return result
         except WorkflowError as e:
             # Turn limit reached - trigger proposal generation UI
             if "Maximum conversation turns" in str(e):
@@ -95,17 +104,27 @@ class WorkflowHandler:
                 - 'error': Error message if applicable
         """
         if not context.validate():
+            logger.error("Context not properly initialized for proposal generation")
             return {"error": "Context not properly initialized"}
 
         session_data = context.session_store.get(session_id)
         if not session_data:
+            logger.warning(f"No session data found for proposal generation: {session_id}")
             return {"error": "No active session found"}
 
         try:
             requirements = history_to_requirements(session_data.history)
+            logger.info(f"Generating proposal for session {session_id}")
 
             bundle: ProposalBundle = await run_bom_pricing_proposal(
                 context.client, requirements
+            )
+            
+            logger.info(
+                f"Proposal generated for session {session_id}: "
+                f"BOM={len(bundle.bom_text)} chars, "
+                f"Pricing={len(bundle.pricing_text)} chars, "
+                f"Proposal={len(bundle.proposal_text)} chars"
             )
 
             return {
@@ -114,6 +133,7 @@ class WorkflowHandler:
                 "proposal": bundle.proposal_text,
             }
         except Exception as e:
+            logger.error(f"Error generating proposal for session {session_id}: {e}")
             return {"error": str(e)}
 
     def handle_reset_session(

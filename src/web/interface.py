@@ -1,10 +1,14 @@
 """Web interface implementation for Azure Pricing Assistant."""
 
+import logging
 from typing import Any, Dict
 
 from src.interfaces.base import PricingInterface
 from src.interfaces.context import InterfaceContext
 from src.interfaces.handlers import WorkflowHandler
+
+# Get logger (setup handled by application entry point)
+logger = logging.getLogger(__name__)
 
 
 class WebInterface(PricingInterface):
@@ -33,6 +37,12 @@ class WebInterface(PricingInterface):
         """
         async with self.context as ctx:
             result = await self.handler.handle_chat_turn(ctx, session_id, message)
+            
+            # Log BOM updates for debugging (data is returned via handle_chat in handlers.py)
+            if result.get("bom_updated"):
+                bom_count = len(result.get("bom_items", []))
+                logger.debug(f"Session {session_id}: BOM updated, {bom_count} items")
+            
             # Remove history from web responses (optional - only if needed for bandwidth)
             return {
                 "response": result.get("response", ""),

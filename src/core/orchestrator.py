@@ -5,7 +5,10 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from opentelemetry.trace import SpanKind
+
 from agent_framework import AgentRunUpdateEvent, ExecutorInvokedEvent, SequentialBuilder
+from agent_framework.observability import get_tracer
 from agent_framework_azure_ai import AzureAIAgentClient
 
 from src.agents import (
@@ -21,6 +24,21 @@ from .session import InMemorySessionStore
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+def _stage_span(stage_name: str, *, session_id: Optional[str] = None, **attrs: Any):
+    tracer = get_tracer(instrumenting_module_name="azure_pricing_assistant.stages")
+    attributes: Dict[str, Any] = {
+        "workflow.stage": stage_name,
+        **attrs,
+    }
+    if session_id:
+        attributes["session.id"] = session_id
+    return tracer.start_as_current_span(
+        name=f"stage.{stage_name.lower().replace(' ', '_')}",
+        kind=SpanKind.INTERNAL,
+        attributes=attributes,
+    )
 
 
 async def run_question_turn(
@@ -42,68 +60,73 @@ async def run_question_turn(
     Returns:
         Dict with response, is_done, requirements_summary, history, and optional bom_items
     """
-    question_agent = create_question_agent(client)
-
-    session_data = session_store.get(session_id)
-    if not session_data:
-        thread = question_agent.get_new_thread()
-        session_data = SessionData(thread=thread, history=[])
-    else:
-        thread = session_data.thread
-
-    # Check turn limit before running
-    if session_data.turn_count >= 20:
-        raise WorkflowError(
-            "Maximum conversation turns (20) reached. "
-            "Please generate a proposal to continue with cost analysis."
-        )
-
-    response_text = ""
-    async for update in question_agent.run_stream(user_message, thread=thread):
-        if update.text:
-            response_text += update.text
-
-    session_data.history.append({"role": "user", "content": user_message})
-    session_data.history.append({"role": "assistant", "content": response_text})
-
-    # Increment turn counter after successful run
-    session_data.turn_count += 1
-    session_store.set(session_id, session_data)
-
-    is_done, requirements_summary = parse_question_completion(response_text)
-
-    result = {
-        "response": response_text,
-        "is_done": is_done,
-        "requirements_summary": requirements_summary,
-        "history": session_data.history,
-    }
-
-    # Trigger incremental BOM update if enabled and conditions are met
-    if enable_incremental_bom and should_trigger_bom_update(
-        response_text, session_data.turn_count, session_data.history
+    with _stage_span(
+        "Asking questions",
+        session_id=session_id,
+        message_length=len(user_message or ""),
     ):
-        logger.info(f"Triggering incremental BOM update for session {session_id}")
+        question_agent = create_question_agent(client)
 
-        # Build recent context from last few exchanges
-        recent_history = (
-            session_data.history[-6:] if len(session_data.history) > 6 else session_data.history
-        )
-        recent_context = "\n".join(f"{msg['role']}: {msg['content']}" for msg in recent_history)
+        session_data = session_store.get(session_id)
+        if not session_data:
+            thread = question_agent.get_new_thread()
+            session_data = SessionData(thread=thread, history=[])
+        else:
+            thread = session_data.thread
 
-        # Run BOM update in background
-        bom_result = await run_incremental_bom_update(
-            client, session_store, session_id, recent_context
-        )
+        # Check turn limit before running
+        if session_data.turn_count >= 20:
+            raise WorkflowError(
+                "Maximum conversation turns (20) reached. "
+                "Please generate a proposal to continue with cost analysis."
+            )
 
-        result["bom_items"] = bom_result.get("bom_items", [])
-        result["bom_updated"] = True
-    else:
-        # Return current BOM items without update
-        result["bom_items"] = session_data.bom_items or []
-        result["bom_updated"] = False
+        response_text = ""
+        async for update in question_agent.run_stream(user_message, thread=thread):
+            if update.text:
+                response_text += update.text
 
-    return result
+        session_data.history.append({"role": "user", "content": user_message})
+        session_data.history.append({"role": "assistant", "content": response_text})
+
+        # Increment turn counter after successful run
+        session_data.turn_count += 1
+        session_store.set(session_id, session_data)
+
+        is_done, requirements_summary = parse_question_completion(response_text)
+
+        result = {
+            "response": response_text,
+            "is_done": is_done,
+            "requirements_summary": requirements_summary,
+            "history": session_data.history,
+        }
+
+        # Trigger incremental BOM update if enabled and conditions are met
+        if enable_incremental_bom and should_trigger_bom_update(
+            response_text, session_data.turn_count, session_data.history
+        ):
+            logger.info(f"Triggering incremental BOM update for session {session_id}")
+
+            # Build recent context from last few exchanges
+            recent_history = (
+                session_data.history[-6:] if len(session_data.history) > 6 else session_data.history
+            )
+            recent_context = "\n".join(f"{msg['role']}: {msg['content']}" for msg in recent_history)
+
+            # Run BOM update in background
+            bom_result = await run_incremental_bom_update(
+                client, session_store, session_id, recent_context
+            )
+
+            result["bom_items"] = bom_result.get("bom_items", [])
+            result["bom_updated"] = True
+        else:
+            # Return current BOM items without update
+            result["bom_items"] = session_data.bom_items or []
+            result["bom_updated"] = False
+
+        return result
 
 
 def history_to_requirements(history: List[Dict[str, str]]) -> str:
@@ -136,22 +159,36 @@ async def run_bom_pricing_proposal(
     proposal_output = ""
     current_agent = ""
 
-    async for event in workflow.run_stream(requirements_text):
-        if isinstance(event, ExecutorInvokedEvent) and getattr(event, "executor_id", None):
-            current_agent = event.executor_id
-            continue
+    cm = _stage_span("Preparing pricing", requirements_length=len(requirements_text or ""))
+    current_stage = "pricing"
+    cm.__enter__()
 
-        if isinstance(event, AgentRunUpdateEvent):
-            text = event.data.text if getattr(event, "data", None) else None
-            if not text:
+    try:
+        async for event in workflow.run_stream(requirements_text):
+            if isinstance(event, ExecutorInvokedEvent) and getattr(event, "executor_id", None):
+                current_agent = event.executor_id
+                if current_agent == "proposal_agent" and current_stage != "proposal":
+                    cm.__exit__(None, None, None)
+                    cm = _stage_span(
+                        "Preparing proposal", requirements_length=len(requirements_text or "")
+                    )
+                    cm.__enter__()
+                    current_stage = "proposal"
                 continue
 
-            if current_agent == "bom_agent":
-                bom_output += text
-            elif current_agent == "pricing_agent":
-                pricing_output += text
-            elif current_agent == "proposal_agent":
-                proposal_output += text
+            if isinstance(event, AgentRunUpdateEvent):
+                text = event.data.text if getattr(event, "data", None) else None
+                if not text:
+                    continue
+
+                if current_agent == "bom_agent":
+                    bom_output += text
+                elif current_agent == "pricing_agent":
+                    pricing_output += text
+                elif current_agent == "proposal_agent":
+                    proposal_output += text
+    finally:
+        cm.__exit__(None, None, None)
 
     # Parse and validate pricing output
     try:
@@ -212,11 +249,23 @@ async def run_bom_pricing_proposal_stream(
     proposal_output = ""
     current_agent = ""
 
+    cm = _stage_span("Preparing pricing", requirements_length=len(requirements_text or ""))
+    current_stage = "pricing"
+    cm.__enter__()
+
     try:
         async for event in workflow.run_stream(requirements_text):
             # Track which agent is running
             if isinstance(event, ExecutorInvokedEvent) and getattr(event, "executor_id", None):
                 current_agent = event.executor_id
+                if current_agent == "proposal_agent" and current_stage != "proposal":
+                    cm.__exit__(None, None, None)
+                    cm = _stage_span(
+                        "Preparing proposal", requirements_length=len(requirements_text or "")
+                    )
+                    cm.__enter__()
+                    current_stage = "proposal"
+
                 # Yield agent start event
                 yield ProgressEvent(
                     event_type="agent_start",
@@ -279,6 +328,8 @@ async def run_bom_pricing_proposal_stream(
             message=f"Error: {str(e)}",
             data={"error": str(e)},
         )
+    finally:
+        cm.__exit__(None, None, None)
 
 
 async def run_incremental_bom_update(

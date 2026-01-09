@@ -1,26 +1,19 @@
-"""Shared logging utilities for CLI and Web interfaces."""
+"""Shared logging utilities for CLI and Web interfaces.
+
+This module does not configure OTLP log exporting.
+It enriches standard Python logs with trace/span ids for correlation.
+
+OTLP exporting of standard Python logs is configured via Agent Framework
+observability (see `src/shared/tracing.py`).
+"""
 
 import logging
-import os
 import sys
-from typing import Dict, Optional
+from typing import Optional
 
 try:
-    from opentelemetry._logs import set_logger_provider
-    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-    from opentelemetry.sdk._logs.export import (
-        BatchLogRecordProcessor,
-        OTLPLogExporter,
-    )
-    from opentelemetry.sdk.resources import Resource
     from opentelemetry.trace import get_current_span
 except Exception:  # pragma: no cover - optional dependency
-    set_logger_provider = None
-    LoggerProvider = None
-    LoggingHandler = None
-    BatchLogRecordProcessor = None
-    OTLPLogExporter = None
-    Resource = None
     get_current_span = None
 
 
@@ -52,79 +45,13 @@ class TraceContextFilter(logging.Filter):
 
         return True
 
-
-def _parse_headers(raw_headers: Optional[str]) -> Dict[str, str]:
-    headers: Dict[str, str] = {}
-
-    if not raw_headers:
-        return headers
-
-    for pair in raw_headers.split(","):
-        if "=" not in pair:
-            continue
-        key, value = pair.split("=", 1)
-        headers[key.strip()] = value.strip()
-
-    return headers
-
-
-def _build_otel_handler(
-    service_name: str, level: int
-) -> Optional[logging.Handler]:
-    """Create an OTLP logging handler if OpenTelemetry is available."""
-
-    otel_deps_available = all(
-        [
-            set_logger_provider,
-            LoggerProvider,
-            LoggingHandler,
-            BatchLogRecordProcessor,
-            OTLPLogExporter,
-            Resource,
-        ]
-    )
-
-    if not otel_deps_available:
-        return None
-
-    endpoint = os.getenv("OTLP_ENDPOINT") or os.getenv(
-        "OTEL_EXPORTER_OTLP_ENDPOINT"
-    )
-
-    if not endpoint:
-        return None
-
-    headers = _parse_headers(
-        os.getenv("OTLP_HEADERS") or os.getenv("OTEL_EXPORTER_OTLP_HEADERS")
-    )
-    insecure = endpoint.startswith("http://")
-
-    try:
-        resource = Resource.create({"service.name": service_name})
-        provider = LoggerProvider(resource=resource)
-        processor = BatchLogRecordProcessor(
-            OTLPLogExporter(endpoint=endpoint, headers=headers, insecure=insecure)
-        )
-        provider.add_log_record_processor(processor)
-        set_logger_provider(provider)
-
-        handler = LoggingHandler(logger_provider=provider, level=level)
-        handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
-        return handler
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        sys.stderr.write(
-            f"Failed to initialize OpenTelemetry logging exporter: {exc}\n"
-        )
-        return None
-
-
 def setup_logging(
     name: str = "pricing_assistant",
     level: int = logging.INFO,
     log_file: Optional[str] = None,
     service_name: Optional[str] = None,
 ) -> logging.Logger:
-    """Configure standard logging and (if available) OpenTelemetry export."""
+    """Configure standard logging with trace/span correlation fields."""
 
     global _LOGGING_CONFIGURED
 
@@ -134,7 +61,7 @@ def setup_logging(
     if _LOGGING_CONFIGURED:
         return logger
 
-    resolved_service_name = service_name or name
+    _ = service_name or name
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
 
@@ -156,11 +83,6 @@ def setup_logging(
         file_handler.setFormatter(formatter)
         file_handler.addFilter(trace_filter)
         root_logger.addHandler(file_handler)
-
-    otel_handler = _build_otel_handler(resolved_service_name, level)
-    if otel_handler:
-        otel_handler.addFilter(trace_filter)
-        root_logger.addHandler(otel_handler)
 
     _LOGGING_CONFIGURED = True
     return logger
