@@ -101,11 +101,11 @@ async def run_question_turn(
         task = asyncio.create_task(
             _run_bom_update_background(client, session_store, session_id, recent_context)
         )
-        
+
         # Store task reference in session
         session_data.bom_update_task = task
         session_store.set(session_id, session_data)
-        
+
         # Return current BOM items immediately without waiting
         result["bom_items"] = session_data.bom_items or []
         result["bom_updated"] = False  # Not yet updated, but task is running
@@ -302,10 +302,10 @@ async def _run_bom_update_background(
 ) -> None:
     """
     Background task wrapper for BOM updates.
-    
+
     Runs BOM update in background and updates session when complete.
     Handles errors gracefully without affecting main conversation flow.
-    
+
     Args:
         client: Azure AI Agent client
         session_store: Session store for persisting BOM items
@@ -315,18 +315,20 @@ async def _run_bom_update_background(
     try:
         logger.info(f"[Background] Starting BOM update for session {session_id}")
         result = await run_incremental_bom_update(client, session_store, session_id, recent_context)
-        
+
         # Update session to clear the task reference
         session_data = session_store.get(session_id)
         if session_data:
             session_data.bom_update_task = None
             session_store.set(session_id, session_data)
-        
+
         if "error" in result:
             logger.warning(f"[Background] BOM update completed with error: {result['error']}")
         else:
-            logger.info(f"[Background] BOM update completed successfully: {len(result.get('bom_items', []))} items")
-    
+            logger.info(
+                f"[Background] BOM update completed successfully: {len(result.get('bom_items', []))} items"
+            )
+
     except Exception as e:
         logger.error(f"[Background] BOM update failed with exception: {e}")
         # Clear task reference even on error
@@ -550,16 +552,14 @@ def should_trigger_bom_update(
     return should_trigger
 
 
-def get_bom_update_status(
-    session_store: InMemorySessionStore, session_id: str
-) -> Dict[str, Any]:
+def get_bom_update_status(session_store: InMemorySessionStore, session_id: str) -> Dict[str, Any]:
     """
     Get current BOM items and update task status.
-    
+
     Args:
         session_store: Session store
         session_id: Session identifier
-        
+
     Returns:
         Dict with bom_items, update_in_progress, and update_completed flags
     """
@@ -570,19 +570,17 @@ def get_bom_update_status(
             "update_in_progress": False,
             "update_completed": False,
         }
-    
+
     # Check if task is running
     task_running = (
-        session_data.bom_update_task is not None 
-        and not session_data.bom_update_task.done()
+        session_data.bom_update_task is not None and not session_data.bom_update_task.done()
     )
-    
+
     # Check if task recently completed (will be None after completion)
     task_completed = (
-        session_data.bom_update_task is not None
-        and session_data.bom_update_task.done()
+        session_data.bom_update_task is not None and session_data.bom_update_task.done()
     )
-    
+
     return {
         "bom_items": session_data.bom_items or [],
         "update_in_progress": task_running,

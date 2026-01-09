@@ -105,5 +105,5 @@ class WebInterface(PricingInterface):
             Dictionary with bom_items, update_in_progress, and update_completed
         """
         from src.core.orchestrator import get_bom_update_status
-        
+
         return get_bom_update_status(self.context.session_store, session_id)
