@@ -109,7 +109,7 @@
       "Test Total Cost Summary includes monthly and annual costs",
       "Test Next Steps and Assumptions sections are present"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

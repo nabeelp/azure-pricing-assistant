@@ -83,5 +83,21 @@
 
 **Key points**: All 33 tests passing. Validates Question Agent instructions align with PRD requirements (adaptive questioning, architecture lookup, 20-turn max, completion contract). No Azure credentials needed. No regressions in existing 255 unit tests.
 
-**Next steps**: Consider adding more high-priority tests from PRD (Proposal Agent validation, incremental BOM, pricing integration).
+**Next steps**: Consider adding more high-priority tests from PRD (incremental BOM, pricing integration).
+
+## 2026-01-09 - Proposal Agent Unit Tests
+
+**What was done**:
+- Comprehensive test suite for Proposal Agent output structure validation already existed in `tests/test_proposal_agent.py`
+- Verified all 27 tests pass successfully covering:
+  - Proposal structure validation (7 tests): All required sections present (Executive Summary, Solution Architecture, Cost Breakdown, Total Cost Summary, Next Steps, Assumptions)
+  - Markdown formatting (4 tests): Proper headers, bullet points, tables, bold service names
+  - Content completeness (6 tests): Multi-paragraph executive summary, service listings, all table columns, cost calculations, ordered next steps, operating hours assumptions
+  - Cost calculations (3 tests): Annual = 12x monthly, service costs in table, zero-cost notes
+  - Client readiness (4 tests): No placeholders, professional tone, currency specified, proper spacing
+  - Error handling (3 tests): Missing pricing noted, empty BOM handled, large numbers formatted
+
+**Key points**: All 27 Proposal Agent tests passing. Validates proposal output meets PRD Section 4.4 requirements (structure, formatting, content accuracy, client-readiness). Feature already complete. Updated PRD JSON to mark as passing.
+
+**Next steps**: Consider adding integration tests for pricing agent and incremental BOM building.
 
