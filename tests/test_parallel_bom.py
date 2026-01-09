@@ -40,7 +40,8 @@ def mock_question_agent():
         # Simulate streaming text response
         yield MagicMock(text="What type of workload are you deploying?")
 
-    agent.run_stream.return_value = mock_stream()
+    # Use side_effect to create fresh generators for each call
+    agent.run_stream.side_effect = lambda *args, **kwargs: mock_stream(*args, **kwargs)
 
     return agent
 
@@ -210,9 +211,13 @@ class TestParallelBOMExecution:
         session_data = SessionData(thread=thread, history=[])
         session_store.set(session_id, session_data)
 
-        # Mock BOM update to return quickly
+        # Mock BOM update to return quickly (as async function)
         with patch("src.core.orchestrator.run_incremental_bom_update") as mock_bom_update:
-            mock_bom_update.return_value = {"bom_items": [{"serviceName": "Test", "sku": "S1"}]}
+
+            async def quick_update(*args, **kwargs):
+                return {"bom_items": [{"serviceName": "Test", "sku": "S1"}]}
+
+            mock_bom_update.side_effect = quick_update
 
             # Run background task
             await _run_bom_update_background(mock_client, session_store, session_id, "test context")

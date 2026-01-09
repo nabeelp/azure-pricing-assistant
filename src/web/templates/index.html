@@ -416,11 +416,8 @@
                         updateBOM(data.bom_items, data.update_completed || false);
                     }
                     
-                    // Stop polling if no update is in progress
-                    if (!data.update_in_progress) {
-                        // Keep polling in case another update starts
-                        // Could optimize to stop completely when done
-                    }
+                    // Note: Continue polling even when no update is in progress
+                    // to catch new updates triggered by subsequent questions
                 } catch (error) {
                     console.error('Error polling BOM:', error);
                 }
