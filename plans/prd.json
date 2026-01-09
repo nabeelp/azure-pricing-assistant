@@ -1,18 +1,5 @@
 [
   {
-    "category": "ui",
-    "description": "Integrate streaming progress feedback into the web UI for visual progress indication during proposal generation",
-    "steps": [
-      "Open the web application and start a chat session",
-      "Complete the requirements gathering phase",
-      "Click 'Generate Proposal' button",
-      "Verify a visual progress indicator shows current agent (BOM, Pricing, Proposal)",
-      "Verify each agent step updates the UI in real-time via SSE events",
-      "Verify completion displays the final proposal"
-    ],
-    "passes": true
-  },
-  {
     "category": "functional",
     "description": "Add web interface endpoint to retrieve previous proposals",
     "steps": [
@@ -23,17 +10,6 @@
       "Verify both proposals are retrievable"
     ],
     "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Add proposal storage mechanism to persist generated proposals",
-    "steps": [
-      "Generate a proposal through the web or CLI interface",
-      "Verify proposal is stored in session or persistent storage",
-      "Retrieve the stored proposal via API",
-      "Verify proposal content matches the generated output"
-    ],
-    "passes": true
   },
   {
     "category": "functional",
@@ -305,16 +281,6 @@
   },
   {
     "category": "testing",
-    "description": "Add tests for web API endpoint /health",
-    "steps": [
-      "Test GET /health returns 200 OK",
-      "Test response contains status: healthy",
-      "Verify endpoint responds quickly (< 100ms)"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
     "description": "Add tests for SSE streaming proposal generation endpoint",
     "steps": [
       "Test GET /api/generate-proposal-stream returns SSE events",
@@ -391,28 +357,6 @@
       "Test error display for proposal generation failures"
     ],
     "passes": false
-  },
-  {
-    "category": "testing",
-    "description": "Add unit tests for BOM merge logic (_merge_bom_items)",
-    "steps": [
-      "Test merging new items into empty BOM",
-      "Test updating existing items with same service and region",
-      "Test keeping items separate when regions differ",
-      "Test handling multiple updates in single merge"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Add unit tests for BOM trigger conditions (should_trigger_bom_update)",
-    "steps": [
-      "Test trigger on done=true completion",
-      "Test trigger on service keyword mentions",
-      "Test trigger on every 3 turns",
-      "Test no trigger on early turns without service info"
-    ],
-    "passes": true
   },
   {
     "category": "documentation",
@@ -495,17 +439,6 @@
   },
   {
     "category": "functional",
-    "description": "BOM Agent should validate service names match Azure pricing catalog",
-    "steps": [
-      "Add pre-submission validation step in BOM Agent",
-      "Use azure_sku_discovery tool to verify each service/SKU combination exists",
-      "Correct or flag services that don't match pricing catalog",
-      "Test with edge cases (deprecated SKUs, regional availability)"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
     "description": "Improve BOM-to-pricing mapping accuracy for complex services",
     "steps": [
       "Identify services with complex pricing models (VMs, Storage, Databases)",
@@ -545,6 +478,20 @@
       "Parse SKU capabilities (vCPUs, memory, IOPS) from retrieved data",
       "Match customer requirements to appropriate SKU based on capabilities",
       "Add fallback logic when exact match is not available"
+    ],
+    "passes": false
+  },
+  {
+    "category": "deployment",
+    "description": "Deploy the Azure Pricing Assistant solution to Azure using azd CLI",
+    "steps": [
+      "Ensure azure.yaml and infra/ bicep templates are properly configured",
+      "Run 'azd auth login' to authenticate with Azure",
+      "Run 'azd up' to provision and deploy all resources",
+      "Verify deployment completes successfully with all resources created",
+      "Test the deployed web application endpoint",
+      "Verify environment variables are properly configured in Azure App Service",
+      "Verify Azure AI Foundry connection is working in production"
     ],
     "passes": false
   }
