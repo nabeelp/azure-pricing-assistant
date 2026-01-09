@@ -387,7 +387,7 @@
       "Verify user can continue or reset session",
       "Test error display for proposal generation failures"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

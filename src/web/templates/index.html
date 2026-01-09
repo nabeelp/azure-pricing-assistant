@@ -345,6 +345,97 @@
         .done-banner.active {
             display: block;
         }
+
+        .error-banner {
+            background: #f44336;
+            color: white;
+            padding: 12px 24px;
+            text-align: center;
+            display: none;
+            position: relative;
+            animation: slideDown 0.3s ease;
+        }
+
+        .error-banner.active {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .error-banner-content {
+            flex: 1;
+        }
+
+        .error-banner-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 8px;
+            margin-left: 12px;
+        }
+
+        .error-banner-close:hover {
+            opacity: 0.8;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .error-message {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            color: #c62828;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .error-message-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .error-message-content {
+            flex: 1;
+        }
+
+        .error-message-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .error-message-detail {
+            font-size: 13px;
+            color: #d32f2f;
+        }
+
+        .retry-button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .retry-button:hover {
+            background: #d32f2f;
+        }
     </style>
 </head>
 <body>
@@ -356,6 +447,13 @@
 
         <div class="done-banner" id="doneBanner">
             ✅ Requirements gathering complete! Click "Generate Proposal" to continue.
+        </div>
+
+        <div class="error-banner" id="errorBanner">
+            <div class="error-banner-content">
+                <span id="errorBannerText">❌ An error occurred</span>
+            </div>
+            <button class="error-banner-close" onclick="hideErrorBanner()">×</button>
         </div>
 
         <div class="main-content">
@@ -399,12 +497,64 @@
 
     <script>
         let isDone = false;
+        let lastUserMessage = '';
+
+        // Error handling utilities
+        function showErrorBanner(message) {
+            const banner = document.getElementById('errorBanner');
+            const text = document.getElementById('errorBannerText');
+            text.textContent = `❌ ${message}`;
+            banner.classList.add('active');
+            
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                hideErrorBanner();
+            }, 10000);
+        }
+
+        function hideErrorBanner() {
+            const banner = document.getElementById('errorBanner');
+            banner.classList.remove('active');
+        }
+
+        function addErrorMessage(title, detail) {
+            const chatContainer = document.getElementById('chatContainer');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            
+            let retryButton = '';
+            if (lastUserMessage) {
+                retryButton = '<button class="retry-button" onclick="retryLastMessage()">🔄 Retry</button>';
+            }
+            
+            errorDiv.innerHTML = `
+                <span class="error-message-icon">⚠️</span>
+                <div class="error-message-content">
+                    <div class="error-message-title">${title}</div>
+                    <div class="error-message-detail">${detail}</div>
+                    ${retryButton}
+                </div>
+            `;
+            
+            chatContainer.appendChild(errorDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function retryLastMessage() {
+            if (lastUserMessage) {
+                document.getElementById('userInput').value = lastUserMessage;
+                sendMessage();
+            }
+        }
 
         async function sendMessage() {
             const input = document.getElementById('userInput');
             const message = input.value.trim();
             
             if (!message) return;
+            
+            // Save message for retry
+            lastUserMessage = message;
             
             // Add user message to chat
             addMessage('user', message);
@@ -424,10 +574,22 @@
                     body: JSON.stringify({ message })
                 });
                 
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMessage = errorData.error || `Server error (${response.status})`;
+                    showErrorBanner(errorMessage);
+                    addErrorMessage(
+                        'Failed to process message',
+                        errorMessage
+                    );
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (data.error) {
-                    addMessage('assistant', `Error: ${data.error}`);
+                    showErrorBanner(data.error);
+                    addErrorMessage('Chat Error', data.error);
                 } else {
                     // Only show response if it's not empty (filters out JSON)
                     if (data.response && data.response.trim()) {
@@ -446,7 +608,13 @@
                     }
                 }
             } catch (error) {
-                addMessage('assistant', `Error: ${error.message}`);
+                console.error('Chat error:', error);
+                const errorDetail = error.message || 'Unknown error occurred';
+                showErrorBanner('Network error - please check your connection');
+                addErrorMessage(
+                    'Connection Error',
+                    `Failed to reach server: ${errorDetail}`
+                );
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.textContent = 'Send';
@@ -523,9 +691,20 @@
                 eventSource.addEventListener('message', (event) => {
                     const data = JSON.parse(event.data);
                     
-                    if (data.error) {
+                    if (data.error || data.event_type === 'error') {
                         eventSource.close();
-                        document.getElementById('proposalContent').innerHTML = `<div class="loading">❌ Error: ${data.error}</div>`;
+                        const errorMsg = data.error || data.message || 'Unknown error';
+                        showErrorBanner('Proposal generation failed');
+                        document.getElementById('proposalContent').innerHTML = `
+                            <div class="error-message" style="margin: 20px;">
+                                <span class="error-message-icon">⚠️</span>
+                                <div class="error-message-content">
+                                    <div class="error-message-title">Failed to Generate Proposal</div>
+                                    <div class="error-message-detail">${errorMsg}</div>
+                                    <button class="retry-button" onclick="backToChat(); generateProposal();">🔄 Try Again</button>
+                                </div>
+                            </div>
+                        `;
                         generateBtn.disabled = false;
                         generateBtn.textContent = 'Generate Proposal';
                         return;
@@ -563,13 +742,35 @@
                 eventSource.addEventListener('error', (error) => {
                     console.error('EventSource error:', error);
                     eventSource.close();
-                    document.getElementById('proposalContent').innerHTML = '<div class="loading">❌ Connection error. Please try again.</div>';
+                    showErrorBanner('Lost connection to server');
+                    document.getElementById('proposalContent').innerHTML = `
+                        <div class="error-message" style="margin: 20px;">
+                            <span class="error-message-icon">⚠️</span>
+                            <div class="error-message-content">
+                                <div class="error-message-title">Connection Lost</div>
+                                <div class="error-message-detail">The connection to the server was interrupted. This may be due to network issues or server timeout.</div>
+                                <button class="retry-button" onclick="backToChat(); generateProposal();">🔄 Try Again</button>
+                                <button class="retry-button" onclick="backToChat()" style="margin-left: 8px; background: #666;">← Back to Chat</button>
+                            </div>
+                        </div>
+                    `;
                     generateBtn.disabled = false;
                     generateBtn.textContent = 'Generate Proposal';
                 });
                 
             } catch (error) {
-                document.getElementById('proposalContent').innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
+                console.error('Proposal generation error:', error);
+                showErrorBanner('Failed to start proposal generation');
+                document.getElementById('proposalContent').innerHTML = `
+                    <div class="error-message" style="margin: 20px;">
+                        <span class="error-message-icon">⚠️</span>
+                        <div class="error-message-content">
+                            <div class="error-message-title">Unable to Generate Proposal</div>
+                            <div class="error-message-detail">${error.message || 'An unexpected error occurred'}</div>
+                            <button class="retry-button" onclick="backToChat(); generateProposal();">🔄 Try Again</button>
+                        </div>
+                    </div>
+                `;
                 generateBtn.disabled = false;
                 generateBtn.textContent = 'Generate Proposal';
             }
@@ -661,19 +862,29 @@
             }
             
             try {
-                await fetch('/api/reset', {
+                const response = await fetch('/api/reset', {
                     method: 'POST'
                 });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMsg = errorData.error || 'Failed to reset session';
+                    showErrorBanner(errorMsg);
+                    return;
+                }
                 
                 // Clear UI
                 document.getElementById('chatContainer').innerHTML = '';
                 document.getElementById('proposalContent').innerHTML = '';
                 document.getElementById('proposalSection').classList.remove('active');
                 document.getElementById('chatContainer').style.display = 'block';
+                document.getElementById('bomSection').style.display = 'flex';
                 document.getElementById('doneBanner').classList.remove('active');
+                hideErrorBanner();
                 document.getElementById('sendBtn').style.display = 'block';
                 document.getElementById('generateBtn').style.display = 'none';
                 isDone = false;
+                lastUserMessage = '';
                 
                 // Clear BOM
                 updateBOM([], false);
@@ -681,7 +892,12 @@
                 // Add initial greeting
                 addMessage('assistant', "Hello! I'll help you price an Azure solution. Let's start!");
             } catch (error) {
-                alert(`Error resetting session: ${error.message}`);
+                console.error('Reset error:', error);
+                showErrorBanner('Failed to reset session');
+                addErrorMessage(
+                    'Reset Failed',
+                    `Unable to reset session: ${error.message || 'Network error'}`
+                );
             }
         }
 
@@ -689,6 +905,7 @@
             document.getElementById('proposalSection').classList.remove('active');
             document.getElementById('chatContainer').style.display = 'block';
             document.getElementById('bomSection').style.display = 'flex';
+            hideErrorBanner();
         }
 
         function handleKeyPress(event) {

@@ -426,3 +426,102 @@ The utility module includes pricing URLs for 50+ Azure services including:
 - Consider adding region-specific pricing links if Azure provides those URLs
 - Could enhance with pricing comparison tables for different regions
 - Future enhancement: Add pricing API integration to embed actual prices directly in markdown
+
+## 2026-01-09 - Web UI Error Handling Implementation
+
+**Feature**: Display error messages for failed API calls in web UI
+
+**What was done**:
+- Added comprehensive error handling UI to `src/web/templates/index.html`:
+  - **Error banner component**: Dismissible top banner for critical errors with slide-down animation
+  - **Inline error messages**: Context-aware error cards with icons, titles, details, and retry buttons
+  - **Error utilities**: JavaScript functions for showing/hiding errors and managing retry state
+  - **Network error detection**: Differentiated handling for HTTP errors vs network failures
+  - **User-friendly messages**: Clear, actionable error descriptions instead of raw error text
+  
+- Enhanced chat error handling:
+  - HTTP 500 errors are caught and displayed with server status codes
+  - Network errors (fetch failures) are identified and shown with connection guidance
+  - JSON parsing errors are handled gracefully
+  - Added retry capability that preserves last message for re-submission
+  - Errors shown both as banner (auto-dismissing) and inline message (persistent)
+  
+- Enhanced proposal generation error handling:
+  - SSE connection errors display with retry and back-to-chat options
+  - EventSource error event handling with connection loss detection
+  - Graceful error display within proposal view with structured error messages
+  - Server errors during proposal generation shown with clear error details
+  
+- Enhanced session reset error handling:
+  - Network errors during reset are caught and displayed
+  - Failed resets don't leave UI in inconsistent state
+  - Error banner cleared on successful reset
+  
+- Added visual feedback:
+  - Error banner: Red background, white text, dismissible with × button
+  - Error messages: Red border, light red background, warning icons
+  - Retry buttons: Red theme matching error context
+  - Animations: Smooth slide-down for error banner, no jarring transitions
+
+**Test coverage**:
+- Created comprehensive test suite `tests/test_ui_error_handling.py` with 21 tests (all passing)
+  - TestChatErrorHandling: 3 tests for chat endpoint error scenarios
+  - TestProposalGenerationErrorHandling: 3 tests for proposal generation errors
+  - TestResetErrorHandling: 2 tests for reset endpoint errors
+  - TestHandlerErrorHandling: 3 tests for handler-level error propagation
+  - TestHTMLErrorElements: 3 tests verifying error UI elements exist
+  - TestErrorMessageFormatting: 3 tests for error message structure
+  - TestErrorHandlingIntegration: 2 tests for complete error workflows
+  - TestErrorBannerBehavior: 2 tests for banner display and animation
+- All existing tests continue to pass (26 web handler tests)
+- No regressions introduced
+
+**Architecture decisions**:
+- Client-side error handling with progressive enhancement
+- Errors displayed both ephemerally (banner) and persistently (inline messages)
+- Retry capability preserves user context (last message) for convenience
+- Error messages are structured: icon + title + detail + optional actions
+- Banner auto-dismisses after 10 seconds to avoid cluttering UI
+- Network errors differentiated from server errors for better troubleshooting
+- SSE errors handled specially since they can't use standard HTTP error codes
+- All errors logged to console for debugging while showing user-friendly messages
+
+**User experience improvements**:
+- **Before**: Errors showed as plain text in chat or generic "Error occurred" message
+- **After**: 
+  - Clear visual distinction between error types (network vs server)
+  - Actionable guidance ("check your connection", "try again")
+  - Retry button preserves context so users don't need to retype messages
+  - Dismissible banner for transient errors
+  - Persistent inline errors for review
+  - Professional error presentation matching overall UI theme
+
+**Error types now handled**:
+1. Chat API errors (HTTP 500, network failures, timeout)
+2. Proposal generation errors (SSE connection loss, server errors, validation failures)
+3. Session reset errors (network issues, server errors)
+4. JSON parsing errors (malformed responses)
+5. EventSource errors (connection interruptions)
+
+**What this enables**:
+- Users can recover from errors without losing context
+- Clear indication when issues are network-related vs server-related
+- Retry functionality reduces friction when transient errors occur
+- Error banner provides immediate feedback without disrupting workflow
+- Inline errors provide detailed context for debugging or support requests
+- Professional error handling builds user trust and reduces frustration
+
+**Next developer notes**:
+- Error messages are currently generic - consider adding specific error codes for better debugging
+- Could add error analytics/telemetry to track error frequency and types
+- Consider adding "Report Issue" button in error messages for user feedback
+- Could implement exponential backoff for retries on network errors
+- May want to add toast notifications for non-critical warnings
+- Error banner auto-dismiss timing (10s) could be made configurable
+- Consider adding error recovery suggestions based on error type (e.g., "Check Azure credentials" for auth errors)
+- Could add a global error handler for uncaught promise rejections
+- Consider implementing request retry logic at the API client level
+- May want to add error state persistence across page refreshes for better UX
+- Test manually with live backend to verify error messages are helpful in real scenarios
+- Consider adding Sentry or similar error tracking for production monitoring
+
