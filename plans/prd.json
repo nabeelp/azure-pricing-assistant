@@ -555,14 +555,14 @@
   },
   {
     "category": "functional",
-    "description": "Implement SSE streaming endpoint /api/bom-stream for real-time BOM updates",
+    "description": "Enhance existing /api/bom endpoint to support polling-based BOM updates",
     "steps": [
-      "Create new route GET /api/bom-stream in src/web/app.py following proposal streaming pattern",
-      "Implement handle_bom_stream() in src/web/handlers.py to yield BOM events as async generator",
-      "Define BOM event types: bom_initial (current state), bom_processing (started), bom_update (new items), bom_complete (finished), bom_error (failed)",
-      "Implement session-level notification mechanism (queue or callback) for BOM state changes",
-      "Add proper SSE response headers and event formatting (data: JSON\\n\\n)",
-      "Handle client disconnection and cleanup of SSE resources"
+      "Ensure GET /api/bom endpoint in src/web/app.py returns current BOM state with task status",
+      "Add bom_task_status field to response JSON (values: idle, processing, complete, error)",
+      "Add bom_last_update timestamp field to response for change detection",
+      "Add bom_task_error field to response when status is error",
+      "Implement efficient session lookup to minimize polling overhead",
+      "Add HTTP caching headers (ETag or Last-Modified) to optimize polling efficiency"
     ],
     "passes": false,
     "priority": "high"
@@ -583,15 +583,15 @@
   },
   {
     "category": "ui",
-    "description": "Update web UI to consume BOM SSE stream and display real-time updates",
+    "description": "Update web UI to poll /api/bom endpoint for asynchronous BOM updates",
     "steps": [
-      "Add EventSource connection to /api/bom-stream in src/web/templates/index.html after chat session starts",
-      "Subscribe to BOM SSE events and parse JSON data from each event",
-      "Update updateBOM() function to handle bom_update events and render new items with animation",
-      "Add visual feedback for bom_processing state (spinner or progress indicator in BOM panel)",
-      "Display error messages in UI when bom_error event is received",
-      "Implement SSE reconnection logic with exponential backoff on connection failures",
-      "Close EventSource connection on session reset or page unload"
+      "Implement polling mechanism in src/web/templates/index.html using setInterval to call /api/bom every 2-3 seconds",
+      "Compare bom_last_update timestamp from response to detect changes and update UI only when BOM changes",
+      "Update updateBOM() function to render new/changed BOM items with animation",
+      "Add visual feedback for bom_processing state (spinner or progress indicator in BOM panel based on bom_task_status)",
+      "Display error messages in UI when bom_task_status is error using bom_task_error field",
+      "Implement smart polling: increase interval to 5s when status is idle/complete, decrease to 1s when processing",
+      "Stop polling on session reset or page unload using clearInterval"
     ],
     "passes": false,
     "priority": "high"
@@ -602,7 +602,7 @@
     "steps": [
       "Wrap async BOM task execution in try/except to catch all exceptions",
       "Store caught exceptions in SessionData.bom_task_error with full traceback",
-      "Propagate errors via SSE bom_error event with sanitized error message for UI",
+      "Expose errors via /api/bom response bom_task_error field with sanitized error message for UI polling",
       "Implement task cancellation when user resets session (call task.cancel() on bom_task_handle)",
       "Implement task cancellation when new BOM update is triggered mid-processing (cancel previous, start new)",
       "Add timeout configuration for BOM agent calls (default 30s) using asyncio.wait_for()",
@@ -618,10 +618,10 @@
     "steps": [
       "Create test_async_bom.py with unit tests for background BOM task execution",
       "Test non-blocking behavior: verify chat response returns before BOM task completes",
-      "Test SSE event sequence: verify bom_initial → bom_processing → bom_update → bom_complete events",
+      "Test polling response sequence: verify /api/bom status transitions from idle → processing → complete with correct bom_last_update timestamps",
       "Test concurrent BOM updates: multiple sessions updating BOMs simultaneously without interference",
       "Test task cancellation: verify previous BOM task is cancelled when new one starts",
-      "Test error handling: simulate MCP failures and verify bom_error event with proper error message",
+      "Test error handling: simulate MCP failures and verify bom_task_status=error with bom_task_error message in /api/bom response",
       "Test timeout handling: simulate slow BOM agent and verify timeout triggers after configured duration",
       "Add integration test with live BOM agent to validate complete async workflow"
     ],
