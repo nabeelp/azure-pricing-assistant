@@ -423,7 +423,7 @@
       "Verify error is added to errors array",
       "Verify proposal notes pricing unavailability"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

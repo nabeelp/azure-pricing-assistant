@@ -117,3 +117,26 @@
 **Key points**: Integration tests validate complete workflow: Question Agent → BOM Agent → incremental BOM building → merge logic → session persistence. Tests require live Azure credentials (AZURE_AI_PROJECT_ENDPOINT). All existing 47 tests still pass, no regressions.
 
 **Next steps**: Consider adding integration tests for pricing agent with live MCP server (next high-priority testing item).
+## 2026-01-11 - Graceful Pricing Failure Handling with $0.00 Fallback
+
+**What was done**:
+- Created comprehensive test suite in `tests/test_pricing_failure_handling.py` validating error handling behavior
+- 11 tests covering all failure scenarios:
+  - Single service pricing unavailable (test $0.00 fallback)
+  - Partial pricing failure (some services succeed, some fail)
+  - Multiple pricing failures (all items get $0.00)
+  - Pricing failure with quantity multipliers
+  - Descriptive error messages (include service, SKU, region, reason)
+  - Notes field explains pricing unavailability
+  - Empty errors array when all successful
+  - Total calculation excludes failed items correctly
+  - Total is $0.00 when all fail
+  - Proposal agent instructions mention pricing unavailability
+  - Proposal agent instructions include "contact sales" note
+- All tests pass (11/11)
+- Existing pricing and proposal agent implementations already had error handling instructions
+- Verified proposal agent includes "$0.00" and "contact Azure sales" guidance
+
+**Key points**: Feature was already implemented in agent instructions (pricing_agent.py lines 162-176, proposal_agent.py line 62). Tests now validate the complete error handling contract: $0.00 fallback, errors array, descriptive messages, total calculation, proposal notes. All 264 unit tests pass (excluding 1 pre-existing circular import failure in test_proposal_storage.py).
+
+**Next steps**: Consider adding live integration tests with simulated MCP failures to verify agent runtime behavior matches instructions.
