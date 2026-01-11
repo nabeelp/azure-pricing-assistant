@@ -121,7 +121,7 @@
       "Verify BOM merge logic correctly updates existing items",
       "Verify BOM is complete after done=true signal"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

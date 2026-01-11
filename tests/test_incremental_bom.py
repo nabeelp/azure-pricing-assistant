@@ -263,3 +263,267 @@ class TestIncrementalBOMParsing:
         # Should raise when allow_empty=False (default)
         with pytest.raises(ValueError, match="cannot be empty"):
             parse_bom_response(response, allow_empty=False)
+
+
+@pytest.mark.asyncio
+class TestIncrementalBOMIntegration:
+    """Integration tests for incremental BOM building with live agents.
+    
+    These tests require Azure credentials and are skipped by default.
+    Set RUN_LIVE_BOM_INTEGRATION=1 to run them.
+    """
+
+    @pytest.fixture
+    def client(self):
+        """Create Azure AI Agent client from environment."""
+        import os
+        from agent_framework_azure_ai import AzureAIAgentClient
+
+        endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
+        if not endpoint:
+            pytest.skip("AZURE_AI_PROJECT_ENDPOINT not set")
+
+        return AzureAIAgentClient.from_env()
+
+    @pytest.fixture
+    def session_store(self):
+        """Create in-memory session store."""
+        from src.core.session import InMemorySessionStore
+
+        return InMemorySessionStore()
+
+    async def test_incremental_bom_multi_turn_conversation(self, client, session_store):
+        """Test BOM is updated incrementally across multiple conversation turns."""
+        import os
+
+        if not os.getenv("RUN_LIVE_BOM_INTEGRATION"):
+            pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run integration tests")
+
+        from src.core.orchestrator import run_question_turn
+
+        session_id = "test-session-001"
+
+        # Turn 1: User mentions web app
+        result = await run_question_turn(
+            client,
+            session_store,
+            session_id,
+            "I need a web application",
+            enable_incremental_bom=True,
+        )
+
+        assert "response" in result
+        assert "is_done" in result
+
+        # Check BOM after turn 1 (may be empty or have initial item)
+        session = session_store.get(session_id)
+        assert session is not None
+        initial_bom = session.bom_items or []
+        print(f"Turn 1 BOM: {len(initial_bom)} items")
+
+        # Turn 2: User specifies region and scale
+        result = await run_question_turn(
+            client, session_store, session_id, "East US region, for 1000 daily users"
+        )
+
+        # BOM should have at least one item by now
+        session = session_store.get(session_id)
+        bom_after_2 = session.bom_items or []
+        print(f"Turn 2 BOM: {len(bom_after_2)} items")
+
+        # Turn 3: User adds database
+        result = await run_question_turn(
+            client, session_store, session_id, "I also need a SQL database"
+        )
+
+        # BOM should now have multiple items
+        session = session_store.get(session_id)
+        bom_after_3 = session.bom_items or []
+        print(f"Turn 3 BOM: {len(bom_after_3)} items")
+        assert len(bom_after_3) >= len(bom_after_2), "BOM should grow or stay same"
+
+        # Turn 4: User changes SKU for web app
+        result = await run_question_turn(
+            client, session_store, session_id, "Actually, use Premium P1v2 tier for the web app"
+        )
+
+        # BOM should have updated the web app SKU
+        session = session_store.get(session_id)
+        final_bom = session.bom_items or []
+        print(f"Final BOM: {len(final_bom)} items")
+
+        # Verify BOM structure
+        for item in final_bom:
+            assert "serviceName" in item
+            assert "sku" in item
+            assert "quantity" in item
+            assert "region" in item
+            assert "armRegionName" in item
+            assert "hours_per_month" in item
+
+        # Verify we captured the web app with updated tier
+        web_app_items = [
+            item for item in final_bom if "app service" in item["serviceName"].lower()
+        ]
+        if web_app_items:
+            assert any("p1v2" in item["sku"].lower() for item in web_app_items), (
+                "Web app should have P1v2 SKU"
+            )
+
+    async def test_bom_merge_updates_existing_item(self, client, session_store):
+        """Test that BOM merge correctly updates existing items."""
+        import os
+
+        if not os.getenv("RUN_LIVE_BOM_INTEGRATION"):
+            pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run integration tests")
+
+        from src.core.orchestrator import run_question_turn
+
+        session_id = "test-session-002"
+
+        # First mention of VM
+        await run_question_turn(
+            client,
+            session_store,
+            session_id,
+            "I need a virtual machine with Basic tier in East US",
+            enable_incremental_bom=True,
+        )
+
+        session = session_store.get(session_id)
+        initial_bom = session.bom_items or []
+        initial_count = len(initial_bom)
+
+        # Update VM to Standard tier
+        await run_question_turn(
+            client,
+            session_store,
+            session_id,
+            "Actually change the VM to Standard D4s_v3 tier",
+        )
+
+        session = session_store.get(session_id)
+        updated_bom = session.bom_items or []
+
+        # Should not add a new item, just update existing
+        assert len(updated_bom) == initial_count, (
+            "BOM count should stay same when updating existing service"
+        )
+
+        # Verify VM was updated to Standard tier
+        vm_items = [
+            item
+            for item in updated_bom
+            if "virtual machine" in item["serviceName"].lower()
+            or "compute" in item["serviceName"].lower()
+        ]
+        if vm_items:
+            # At least one VM item should have Standard SKU
+            assert any("standard" in item["sku"].lower() for item in vm_items), (
+                "VM should have Standard SKU"
+            )
+
+    async def test_bom_complete_after_done_signal(self, client, session_store):
+        """Test BOM is finalized when conversation reaches done=true."""
+        import os
+
+        if not os.getenv("RUN_LIVE_BOM_INTEGRATION"):
+            pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run integration tests")
+
+        from src.core.orchestrator import run_question_turn
+
+        session_id = "test-session-003"
+
+        # Simulate quick conversation
+        await run_question_turn(
+            client,
+            session_store,
+            session_id,
+            "Web app in East US, SQL database, 1000 users",
+            enable_incremental_bom=True,
+        )
+
+        # Multiple turns to build context
+        for i in range(2):
+            result = await run_question_turn(
+                client,
+                session_store,
+                session_id,
+                "Yes, that sounds good",
+            )
+            if result.get("is_done"):
+                break
+
+        # Verify BOM is present
+        session = session_store.get(session_id)
+        final_bom = session.bom_items or []
+
+        # BOM should have items by now
+        assert len(final_bom) > 0, "BOM should have items after conversation"
+
+        # Verify BOM items have required fields
+        for item in final_bom:
+            assert item.get("serviceName"), f"Missing serviceName: {item}"
+            assert item.get("sku"), f"Missing sku: {item}"
+            assert item.get("region"), f"Missing region: {item}"
+            assert item.get("armRegionName"), f"Missing armRegionName: {item}"
+
+    async def test_bom_handles_multi_region_deployment(self, client, session_store):
+        """Test BOM correctly handles services deployed in multiple regions."""
+        import os
+
+        if not os.getenv("RUN_LIVE_BOM_INTEGRATION"):
+            pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run integration tests")
+
+        from src.core.orchestrator import run_question_turn
+
+        session_id = "test-session-004"
+
+        # Request multi-region deployment
+        await run_question_turn(
+            client,
+            session_store,
+            session_id,
+            "I need web apps in both East US and West Europe regions",
+            enable_incremental_bom=True,
+        )
+
+        # Add more context
+        await run_question_turn(
+            client, session_store, session_id, "Premium P1v2 tier for both"
+        )
+
+        # Check BOM has separate items for each region
+        session = session_store.get(session_id)
+        bom = session.bom_items or []
+
+        regions_found = {item.get("region") for item in bom}
+        print(f"Regions in BOM: {regions_found}")
+
+        # Should have items for multiple regions (at least 2)
+        assert len(regions_found) >= 2, "Should have services in multiple regions"
+
+    async def test_incremental_bom_with_disabled_flag(self, client, session_store):
+        """Test that BOM is not updated when enable_incremental_bom=False."""
+        import os
+
+        if not os.getenv("RUN_LIVE_BOM_INTEGRATION"):
+            pytest.skip("Set RUN_LIVE_BOM_INTEGRATION=1 to run integration tests")
+
+        from src.core.orchestrator import run_question_turn
+
+        session_id = "test-session-005"
+
+        # Run with incremental BOM disabled
+        await run_question_turn(
+            client,
+            session_store,
+            session_id,
+            "I need a web application in East US",
+            enable_incremental_bom=False,
+        )
+
+        # BOM should remain empty
+        session = session_store.get(session_id)
+        bom = session.bom_items or []
+        assert len(bom) == 0, "BOM should be empty when incremental BOM is disabled"

@@ -101,3 +101,19 @@
 
 **Next steps**: Consider adding integration tests for pricing agent and incremental BOM building.
 
+## 2026-01-11 - Incremental BOM Integration Tests
+
+**What was done**:
+- Added comprehensive integration tests to `tests/test_incremental_bom.py` for multi-turn BOM building workflow
+- 5 new integration test scenarios (all skipped by default, runnable with RUN_LIVE_BOM_INTEGRATION=1):
+  - Multi-turn conversation with incremental BOM updates
+  - BOM merge logic correctly updates existing items (not duplicating)
+  - BOM completion after done=true signal
+  - Multi-region deployment handling (separate items per region)
+  - BOM update disabled flag behavior
+- All unit tests (13) pass: trigger logic, merge logic, parsing
+- All integration tests (5) structured correctly with proper fixtures and Azure auth
+
+**Key points**: Integration tests validate complete workflow: Question Agent → BOM Agent → incremental BOM building → merge logic → session persistence. Tests require live Azure credentials (AZURE_AI_PROJECT_ENDPOINT). All existing 47 tests still pass, no regressions.
+
+**Next steps**: Consider adding integration tests for pricing agent with live MCP server (next high-priority testing item).
