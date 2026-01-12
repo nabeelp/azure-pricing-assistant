@@ -225,3 +225,31 @@
 **Key points**: Reduces question count from 10+ to target 5-8 by eliminating non-pricing-essential topics. Focuses exclusively on information needed for BOM generation and pricing estimate. Architecture questions only asked if they directly affect service selection or SKU tier. Completion can occur without gathering environment type, availability requirements, or architecture components. Instructions explicitly guide agent to skip deep-dive architecture discussions. All streamlined behavior validated with passing test suite.
 
 **Next steps**: Consider removing obsolete tests from `test_question_agent.py` that check for removed features. Monitor real-world conversations to validate 5-8 question target is achievable.
+## 2026-01-12 - Pricing Agent Integration Tests
+
+**What was done**:
+- Created comprehensive integration test suite in `tests/test_pricing_integration.py` for Pricing Agent with live Azure Pricing MCP server
+- 5 test scenarios covering pricing workflows with real agent and MCP interactions:
+  1. test_pricing_agent_simple_app_service: Simple App Service pricing lookup with schema validation
+  2. test_pricing_agent_multiple_services: Multi-service BOM with total calculation validation
+  3. test_pricing_agent_graceful_fallback: Fallback behavior for unavailable pricing ($0.00 + errors array)
+  4. test_pricing_agent_total_accuracy: Total calculation accuracy (sum of item costs)
+  5. test_pricing_agent_region_variations: Region-specific pricing for same SKU in different regions
+- Each test validates pricing response schema against PRD Section 4.3:
+  - Required fields: total_monthly, currency, pricing_date, items[]
+  - Item fields: serviceName, sku, region, armRegionName, quantity, hours_per_month, unit_price, monthly_cost
+  - pricing_date format validation (ISO 8601: YYYY-MM-DD)
+  - Total calculation accuracy (within $1.00 rounding tolerance)
+  - Graceful error handling validation (errors array, $0.00 fallback, error notes)
+- Tests gated by RUN_LIVE_PRICING_INTEGRATION=1 environment variable
+- Prerequisites documented in tests/README.md:
+  - AZURE_AI_PROJECT_ENDPOINT (Azure AI Foundry project)
+  - AZURE_AI_MODEL_DEPLOYMENT_NAME (gpt-4o-mini or similar)
+  - AZURE_PRICING_MCP_URL (default: http://localhost:8080/mcp)
+  - Azure credentials via az login or DefaultAzureCredential
+  - Azure Pricing MCP server running (from https://github.com/nabeelp/AzurePricingMCP)
+- Updated tests/README.md with new test section documenting 5 test scenarios and run instructions
+
+**Key points**: Integration tests validate complete Pricing Agent workflow: BOM input → MCP tool usage (azure_cost_estimate) → pricing response → schema validation. Tests confirm agent correctly parses pricing data, calculates totals, handles errors, and formats dates. Tests require live Azure credentials and running Azure Pricing MCP server. All tests structured for easy execution with `RUN_LIVE_PRICING_INTEGRATION=1 pytest tests/test_pricing_integration.py -v -s`. Provides confidence in pricing accuracy and error handling for production use.
+
+**Next steps**: Consider adding more test scenarios for complex services (VMs with managed disks, Azure Kubernetes Service, Cosmos DB with RU/s pricing).
