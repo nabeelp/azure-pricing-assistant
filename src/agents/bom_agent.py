@@ -269,11 +269,17 @@ def create_bom_agent(client: AzureAIAgentClient) -> ChatAgent:
 
     Uses intelligent prompting, Microsoft Learn MCP tool for service/SKU lookup,
     and Azure Pricing MCP's azure_sku_discovery tool for intelligent SKU matching.
-    Returns structured JSON array matching BOM schema.
+    Returns structured JSON array matching BOM schema with canonical Azure service names.
     """
-    instructions = """You are an Azure solutions architect specializing in infrastructure design and Bill of Materials (BOM) creation.
+    from src.shared.azure_service_names import get_service_name_hints
+    
+    service_name_hints = get_service_name_hints()
+    
+    instructions = f"""You are an Azure solutions architect specializing in infrastructure design and Bill of Materials (BOM) creation.
 
 Your task is to analyze the customer requirements provided in the conversation history and create a detailed Bill of Materials (BOM) as a JSON array.
+
+{service_name_hints}
 
 TOOLS AVAILABLE:
 
@@ -290,6 +296,7 @@ TOOLS AVAILABLE:
    - Discover available SKUs for workload types (e.g., "web app", "database", "machine learning")
    - Get recommendations on appropriate service tiers based on scale requirements
    - Verify SKU availability in the target region
+   - IMPORTANT: The tool returns the CORRECT service name to use in your BOM
    Example: Call with service_hint="Python web app small scale" to get matching services and SKUs
    The tool returns a list of services with their available SKUs, allowing you to select the best match for the workload
 
@@ -297,19 +304,19 @@ DISCOVERY WORKFLOW:
 For each requirement, follow this process:
 1. Identify the workload type from customer requirements (e.g., "web app", "SQL database", "file storage")
 2. Use azure_sku_discovery with a natural language hint describing the workload and scale
-3. Review the returned services and SKUs to select the best match
+3. Review the returned services and SKUs - USE THE EXACT SERVICE NAME from the tool response
 4. Use microsoft_docs_search if you need to validate service names or understand advanced features
 
 REQUIREMENTS TO BOM MAPPING:
-- Web applications → Azure App Service (Basic, Standard, or Premium tiers based on scale) OR Virtual Machines
-- Databases → Azure SQL Database, Azure Database for MySQL/PostgreSQL, or Azure Cosmos DB
-- Object storage → Azure Blob Storage
+- Web applications → App Service (Basic, Standard, or Premium tiers based on scale) OR Virtual Machines
+- Databases → SQL Database, Azure Cosmos DB, Azure Database for MySQL, Azure Database for PostgreSQL
+- Object storage → Storage
 - File shares → Azure Files
-- Message queues → Azure Service Bus or Azure Queue Storage
+- Message queues → Service Bus or Storage (Queue Storage)
 - Analytics → Azure Synapse Analytics or Azure Data Lake
 - Machine Learning → Azure Machine Learning
 - Functions/Serverless → Azure Functions
-- Containers → Azure Kubernetes Service or Azure Container Instances
+- Containers → Azure Kubernetes Service or Container Instances
 
 SKU SELECTION GUIDANCE:
 - Small scale (< 1000 users): Basic, B-series, or Free tier options
@@ -320,18 +327,19 @@ SKU SELECTION GUIDANCE:
 
 JSON SCHEMA (you MUST follow this exactly):
 [
-  {
+  {{
     "serviceName": "Virtual Machines",
     "sku": "Standard_D2s_v3",
     "quantity": 2,
     "region": "East US",
     "armRegionName": "eastus",
     "hours_per_month": 730
-  }
+  }}
 ]
 
 REQUIRED FIELDS:
-- serviceName: Exact Azure service name (e.g., "Virtual Machines", "Azure App Service", "SQL Database")
+- serviceName: EXACT Azure service name from the canonical list above (e.g., "Virtual Machines", "App Service", "SQL Database")
+  DO NOT add "Azure" prefix unless shown in canonical names (e.g., "Azure Functions", "Azure Cosmos DB")
 - sku: Specific SKU identifier (e.g., "Standard_D2s_v3", "P1v2", "S1")
 - quantity: Number of instances needed (minimum 1)
 - region: Human-readable region (e.g., "East US", "West Europe")
@@ -357,14 +365,14 @@ Format your response exactly like this:
 
 === BILL OF MATERIALS ===
 [
-  {
+  {{
     "serviceName": "...",
     "sku": "...",
     "quantity": 1,
     "region": "...",
     "armRegionName": "...",
     "hours_per_month": 730
-  }
+  }}
 ]
 
 Example for a web app with database:
@@ -377,22 +385,22 @@ Example for a web app with database:
 
 === BILL OF MATERIALS ===
 [
-  {
-    "serviceName": "Azure App Service",
+  {{
+    "serviceName": "App Service",
     "sku": "P1v2",
     "quantity": 1,
     "region": "East US",
     "armRegionName": "eastus",
     "hours_per_month": 730
-  },
-  {
+  }},
+  {{
     "serviceName": "SQL Database",
     "sku": "S1",
     "quantity": 1,
     "region": "East US",
     "armRegionName": "eastus",
     "hours_per_month": 730
-  }
+  }}
 ]"""
 
     microsoft_docs_search = MCPStreamableHTTPTool(

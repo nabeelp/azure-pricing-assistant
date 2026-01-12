@@ -140,3 +140,24 @@
 **Key points**: Feature was already implemented in agent instructions (pricing_agent.py lines 162-176, proposal_agent.py line 62). Tests now validate the complete error handling contract: $0.00 fallback, errors array, descriptive messages, total calculation, proposal notes. All 264 unit tests pass (excluding 1 pre-existing circular import failure in test_proposal_storage.py).
 
 **Next steps**: Consider adding live integration tests with simulated MCP failures to verify agent runtime behavior matches instructions.
+## 2026-01-12 - BOM Service Name Mapping Improvements
+
+**What was done**:
+- Created `src/shared/azure_service_names.py` with canonical Azure service name mappings for BOM-to-Pricing consistency
+- Implemented `normalize_service_name()` function to map common variations (e.g., "web app" → "App Service", "Azure SQL Database" → "SQL Database")
+- Added 40+ canonical service names and 60+ variation mappings aligned with Azure Retail Prices API
+- Updated BOM Agent instructions to include service name mapping hints via `get_service_name_hints()`
+- Changed example BOM output to use "App Service" instead of "Azure App Service" for consistency
+- Created comprehensive test suite in `tests/test_service_name_mapping.py` with 25 tests covering:
+  - Canonical name passthrough (17 normalization tests)
+  - Common service name variations (web app, webapp, azure app service → App Service)
+  - Case-insensitive matching (SQL DATABASE → SQL Database)
+  - Edge cases (None, empty string, unknown services passthrough)
+  - Instruction hint generation for agent guidance (4 tests)
+  - BOM agent integration (2 tests)
+  - Service name consistency checks (2 tests)
+- All 25 tests pass, no regressions in existing 50 tests (BOM + service name mapping combined)
+
+**Key points**: Addresses BOM-to-Pricing mismatch issues where BOM used "Azure App Service" but Pricing API expects "App Service". Consolidated service names (e.g., "Storage" covers Blob Storage, Azure Files, Managed Disks). Agent now receives explicit canonical name mappings in instructions. Module is importable and reusable for future validation/normalization needs.
+
+**Next steps**: Consider adding validation step in orchestrator to auto-normalize BOM service names before pricing lookup.

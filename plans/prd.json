@@ -473,7 +473,7 @@
       "Test BOM output against Pricing Agent and verify all items get valid prices",
       "Add validation to reject BOM items with unmappable service/SKU combinations"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {
