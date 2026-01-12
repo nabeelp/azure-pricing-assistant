@@ -253,3 +253,24 @@
 **Key points**: Integration tests validate complete Pricing Agent workflow: BOM input → MCP tool usage (azure_cost_estimate) → pricing response → schema validation. Tests confirm agent correctly parses pricing data, calculates totals, handles errors, and formats dates. Tests require live Azure credentials and running Azure Pricing MCP server. All tests structured for easy execution with `RUN_LIVE_PRICING_INTEGRATION=1 pytest tests/test_pricing_integration.py -v -s`. Provides confidence in pricing accuracy and error handling for production use.
 
 **Next steps**: Consider adding more test scenarios for complex services (VMs with managed disks, Azure Kubernetes Service, Cosmos DB with RU/s pricing).
+## 2026-01-12 - Proposal Generation Workflow Integration Tests
+
+**What was done**:
+- Created comprehensive integration test suite in `tests/test_proposal_workflow_integration.py` for complete BOM → Pricing → Proposal workflow
+- 3 test scenarios covering end-to-end proposal generation with real agents:
+  1. test_proposal_workflow_simple_web_app: Full workflow validation for simple web app with Azure App Service + SQL Database
+     - Phase 1: BOM Agent generates bill of materials from requirements
+     - Phase 2: Pricing Agent calculates costs for all BOM items
+     - Phase 3: Proposal Agent generates client-ready proposal
+     - Validation 1: All BOM items mentioned in proposal (checks each serviceName presence)
+     - Validation 2: Costs match pricing output (total_monthly and individual item costs)
+     - Validation 3: Proposal is client-ready (required sections, substantial content, proper markdown, no placeholders, mentions pricing date)
+  2. test_proposal_workflow_multi_region: Multi-region deployment handling (East US + West Europe)
+  3. test_proposal_workflow_with_pricing_errors: Error handling with pricing fallback (fictional SKU)
+- Tests gated by RUN_LIVE_PROPOSAL_WORKFLOW=1 environment variable
+- Fixed f-string syntax errors in `src/agents/bom_agent.py`: Virtual Machines and Azure Functions SKU format strings
+
+**Key points**: Integration tests validate complete proposal generation pipeline from requirements to final client-ready proposal. Tests confirm all BOM items included, costs match pricing, professional markdown format. Multi-region test ensures global deployments handled correctly. Error handling test validates graceful degradation when pricing unavailable. Tests require live Azure credentials and running Azure Pricing MCP server. Feature complete with comprehensive test coverage.
+
+**Next steps**: Consider adding test scenarios for more complex architectures (microservices, machine learning workflows, data analytics pipelines).
+

@@ -145,7 +145,7 @@
       "Verify proposal costs match pricing output",
       "Verify proposal markdown is client-ready"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

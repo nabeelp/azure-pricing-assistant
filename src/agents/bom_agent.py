@@ -329,7 +329,7 @@ COMPLEX SERVICE MAPPING RULES:
 
 1. **Virtual Machines**:
    - serviceName: "Virtual Machines"
-   - SKU format: "Standard_{series}{size}_v{generation}" (e.g., "Standard_D2s_v3", "Standard_B2s")
+   - SKU format: "Standard_{{series}}{{size}}_v{{generation}}" (e.g., "Standard_D2s_v3", "Standard_B2s")
    - Common series: B (Basic), D (General Purpose), E (Memory Optimized), F (Compute Optimized)
    - Consider managed disk pricing separately if needed (serviceName: "Storage", SKU: "StandardSSD_LRS" or "PremiumSSD_LRS")
 
@@ -358,7 +358,7 @@ COMPLEX SERVICE MAPPING RULES:
 5. **Azure Functions**:
    - serviceName: "Azure Functions"
    - Consumption Plan: SKU = "Y1" (pay-per-execution, included in free tier for first 1M executions)
-   - Premium Plan: SKU format "EP{size}" (e.g., "EP1", "EP2", "EP3")
+   - Premium Plan: SKU format "EP{{size}}" (e.g., "EP1", "EP2", "EP3")
    - Dedicated App Service Plan: Use "App Service" with appropriate SKU
 
 6. **Azure Kubernetes Service (AKS)**:
