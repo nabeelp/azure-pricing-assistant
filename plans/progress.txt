@@ -274,3 +274,33 @@
 
 **Next steps**: Consider adding test scenarios for more complex architectures (microservices, machine learning workflows, data analytics pipelines).
 
+## 2026-01-12 - Asynchronous BOM Updates with Background Tasks
+
+**What was done**:
+- Refactored orchestrator to run BOM updates as non-blocking background tasks
+- Added BOM task lifecycle tracking to SessionData model:
+  * bom_task_status: Task state tracking (idle, queued, processing, complete, error)
+  * bom_task_error: Error message storage for failed BOM updates
+  * bom_last_update: Timestamp of last BOM modification
+  * bom_task_handle: asyncio.Task reference for cancellation support
+- Created _run_bom_task_background() wrapper function for async BOM updates:
+  * 30-second timeout with asyncio.wait_for()
+  * Proper state transitions (queued → processing → complete/error)
+  * Error handling for timeouts, cancellations, and exceptions
+- Modified run_question_turn() to spawn BOM tasks using asyncio.create_task() without awaiting:
+  * Chat responses return immediately (non-blocking behavior)
+  * BOM updates process in background
+  * Previous task cancellation when new one starts
+- Updated reset_session() to async function with task cancellation support
+- Updated all interface handlers (web/CLI) to await reset_session()
+- Created comprehensive test suite tests/test_async_bom_workflow.py with 6 tests (all passing):
+  * test_run_question_turn_spawns_background_task: Verifies non-blocking task spawning
+  * test_background_task_state_transitions: Validates lifecycle state transitions
+  * test_background_task_handles_timeout: Tests timeout handling with 30s limit
+  * test_background_task_handles_exception: Tests exception handling and error state
+  * test_task_cancellation_on_new_request: Verifies previous task cancellation
+  * test_non_blocking_behavior: Confirms chat response returns before BOM completes
+
+**Key points**: Chat responses now return immediately without waiting for BOM generation. BOM tasks run in background with proper state tracking, error handling, and timeout protection. Previous BOM tasks are cancelled when new ones start to prevent resource leaks. Session reset properly cleans up in-progress tasks. All existing tests pass (325 passing, 14 pre-existing failures in Question Agent tests from previous streamlining). Feature enables responsive UI with polling-based BOM updates (foundation for next features).
+
+**Next steps**: Enhance /api/bom endpoint to expose task status for UI polling. Add UI polling mechanism to update BOM panel asynchronously.

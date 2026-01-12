@@ -1,8 +1,10 @@
 """Shared orchestration helpers for CLI and web interfaces."""
 
+import asyncio
 import json
 import logging
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from opentelemetry.trace import SpanKind
@@ -39,6 +41,75 @@ def _stage_span(stage_name: str, *, session_id: Optional[str] = None, **attrs: A
         kind=SpanKind.INTERNAL,
         attributes=attributes,
     )
+
+
+async def _run_bom_task_background(
+    client: AzureAIAgentClient,
+    session_store: InMemorySessionStore,
+    session_id: str,
+    recent_context: str,
+) -> None:
+    """
+    Background task wrapper for run_incremental_bom_update.
+    
+    Handles state transitions and error handling for async BOM updates.
+    Updates session state with task status and results.
+    
+    Args:
+        client: Azure AI Agent client
+        session_store: Session store
+        session_id: Session identifier
+        recent_context: Recent conversation context
+    """
+    session_data = session_store.get(session_id)
+    if not session_data:
+        logger.warning(f"No session data found for {session_id} in background task")
+        return
+    
+    # Transition to processing state
+    session_data.bom_task_status = "processing"
+    session_data.bom_task_error = None
+    session_store.set(session_id, session_data)
+    
+    try:
+        # Run BOM update with 30s timeout
+        bom_result = await asyncio.wait_for(
+            run_incremental_bom_update(client, session_store, session_id, recent_context),
+            timeout=30.0
+        )
+        
+        # Update session with results
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.bom_task_status = "complete"
+            session_data.bom_last_update = datetime.now()
+            session_store.set(session_id, session_data)
+            
+            logger.info(f"Background BOM task complete for session {session_id}")
+    
+    except asyncio.TimeoutError:
+        logger.error(f"BOM task timeout for session {session_id}")
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.bom_task_status = "error"
+            session_data.bom_task_error = "BOM generation timed out after 30 seconds"
+            session_store.set(session_id, session_data)
+    
+    except asyncio.CancelledError:
+        logger.info(f"BOM task cancelled for session {session_id}")
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.bom_task_status = "idle"
+            session_store.set(session_id, session_data)
+        raise
+    
+    except Exception as e:
+        logger.error(f"BOM task error for session {session_id}: {e}")
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.bom_task_status = "error"
+            session_data.bom_task_error = f"BOM generation failed: {str(e)}"
+            session_store.set(session_id, session_data)
 
 
 async def run_question_turn(
@@ -114,17 +185,36 @@ async def run_question_turn(
             )
             recent_context = "\n".join(f"{msg['role']}: {msg['content']}" for msg in recent_history)
 
-            # Run BOM update in background
-            bom_result = await run_incremental_bom_update(
-                client, session_store, session_id, recent_context
-            )
+            # Cancel any existing BOM task
+            if session_data.bom_task_handle and not session_data.bom_task_handle.done():
+                logger.info(f"Cancelling previous BOM task for session {session_id}")
+                session_data.bom_task_handle.cancel()
+                try:
+                    await session_data.bom_task_handle
+                except asyncio.CancelledError:
+                    pass
 
-            result["bom_items"] = bom_result.get("bom_items", [])
-            result["bom_updated"] = True
+            # Set status to queued
+            session_data.bom_task_status = "queued"
+            session_store.set(session_id, session_data)
+
+            # Spawn background BOM task (don't await)
+            task = asyncio.create_task(
+                _run_bom_task_background(client, session_store, session_id, recent_context)
+            )
+            
+            # Store task handle for cancellation
+            session_data.bom_task_handle = task
+            session_store.set(session_id, session_data)
+
+            result["bom_items"] = session_data.bom_items or []
+            result["bom_updated"] = False  # Will be updated asynchronously
+            result["bom_task_status"] = "queued"
         else:
             # Return current BOM items without update
             result["bom_items"] = session_data.bom_items or []
             result["bom_updated"] = False
+            result["bom_task_status"] = session_data.bom_task_status
 
         return result
 
@@ -546,8 +636,19 @@ def should_trigger_bom_update(
     return should_trigger
 
 
-def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:
-    """Clear session state."""
+async def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:
+    """Clear session state and cancel any in-progress BOM tasks."""
+    session_data = session_store.get(session_id)
+    
+    # Cancel any in-progress BOM task
+    if session_data and session_data.bom_task_handle and not session_data.bom_task_handle.done():
+        logger.info(f"Cancelling BOM task during session reset for {session_id}")
+        session_data.bom_task_handle.cancel()
+        try:
+            await session_data.bom_task_handle
+        except asyncio.CancelledError:
+            pass
+    
     session_store.delete(session_id)
 
 

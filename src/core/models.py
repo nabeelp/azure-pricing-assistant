@@ -1,6 +1,8 @@
 """Shared data models for orchestrator flows."""
 
+import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 
@@ -73,6 +75,12 @@ class SessionData:
     turn_count: int = 0  # Track conversation turns for 20-turn limit
     bom_items: List[Dict[str, Any]] = None  # Incremental BOM items built during conversation
     proposal: Optional[ProposalBundle] = None  # Stored proposal after generation
+    
+    # BOM task lifecycle tracking
+    bom_task_status: str = "idle"  # Values: idle, queued, processing, complete, error
+    bom_task_error: Optional[str] = None  # Error message from failed BOM updates
+    bom_last_update: Optional[datetime] = None  # Last BOM modification timestamp
+    bom_task_handle: Optional[asyncio.Task] = None  # Task reference for cancellation
 
     def __post_init__(self):
         """Initialize mutable default values."""

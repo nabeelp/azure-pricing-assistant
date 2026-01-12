@@ -183,7 +183,7 @@ class WorkflowHandler:
                 end_session_span(session_id)
                 return {"error": str(e)}
 
-    def handle_reset_session(
+    async def handle_reset_session(
         self,
         context: InterfaceContext,
         session_id: str,
@@ -198,7 +198,7 @@ class WorkflowHandler:
         Returns:
             Dictionary with status
         """
-        reset_session(context.session_store, session_id)
+        await reset_session(context.session_store, session_id)
         return {"status": "reset"}
 
     def get_session_history(

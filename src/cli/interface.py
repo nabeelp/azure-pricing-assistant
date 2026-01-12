@@ -86,7 +86,7 @@ class CLIInterface(PricingInterface):
         Args:
             session_id: Unique identifier for the chat session
         """
-        self.handler.handle_reset_session(self.context, session_id)
+        await self.handler.handle_reset_session(self.context, session_id)
 
     async def get_session_history(self, session_id: str) -> list:
         """

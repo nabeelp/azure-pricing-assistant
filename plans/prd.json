@@ -550,7 +550,7 @@
       "Implement task completion callback to update session state when BOM finishes",
       "Add cancellation support for in-progress BOM tasks when new ones are triggered"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {
