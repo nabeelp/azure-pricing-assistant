@@ -609,7 +609,7 @@
       "Implement graceful fallback when MCP tools fail (log error, return partial BOM with error note)",
       "Add OpenTelemetry metrics for BOM task failures and timeout rates"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

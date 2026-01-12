@@ -125,7 +125,8 @@ class TestAsyncBOMWorkflow:
         async def mock_slow_bom(*args, **kwargs):
             await asyncio.sleep(35)  # Exceeds 30s timeout
         
-        with patch("src.core.orchestrator.run_incremental_bom_update", side_effect=mock_slow_bom):
+        with patch("src.core.orchestrator.run_incremental_bom_update", side_effect=mock_slow_bom), \
+             patch("src.core.orchestrator.increment_errors") as mock_increment_errors:
             # Run background task (should timeout)
             await _run_bom_task_background(
                 client=mock_client,
@@ -139,6 +140,9 @@ class TestAsyncBOMWorkflow:
             assert session_data.bom_task_status == "error"
             assert session_data.bom_task_error is not None
             assert "timed out" in session_data.bom_task_error.lower()
+            
+            # Verify metrics were incremented
+            mock_increment_errors.assert_called_once_with("bom_timeout", session_id=session_id)
 
     @pytest.mark.asyncio
     async def test_background_task_handles_exception(self):
@@ -158,7 +162,8 @@ class TestAsyncBOMWorkflow:
         async def mock_failing_bom(*args, **kwargs):
             raise ValueError("MCP server unavailable")
         
-        with patch("src.core.orchestrator.run_incremental_bom_update", side_effect=mock_failing_bom):
+        with patch("src.core.orchestrator.run_incremental_bom_update", side_effect=mock_failing_bom), \
+             patch("src.core.orchestrator.increment_errors") as mock_increment_errors:
             # Run background task (should handle error)
             await _run_bom_task_background(
                 client=mock_client,
@@ -172,6 +177,9 @@ class TestAsyncBOMWorkflow:
             assert session_data.bom_task_status == "error"
             assert session_data.bom_task_error is not None
             assert "failed" in session_data.bom_task_error.lower()
+            
+            # Verify metrics were incremented
+            mock_increment_errors.assert_called_once_with("bom_task_failure", session_id=session_id)
 
     @pytest.mark.asyncio
     async def test_task_cancellation_on_new_request(self):

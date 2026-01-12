@@ -355,3 +355,23 @@
 
 **Next steps**: Consider adding comprehensive tests for error handling and task cancellation for background BOM updates (next high-priority item).
 
+
+## 2026-01-12 - Enhanced Error Handling and Metrics for Background BOM Updates
+
+**What was done**:
+- Added comprehensive traceback logging to BOM task error handlers with exc_info=True
+- Added structured logging with extra fields (session_id, error_type) for better querying
+- Integrated OpenTelemetry metrics for BOM failures:
+  * increment_errors("bom_timeout") for timeout errors
+  * increment_errors("bom_task_failure") for general exceptions
+- Imported traceback module for full error details in logs
+- Sanitized error messages in bom_task_error field (user-facing, no traceback)
+- Updated test_async_bom_workflow.py to verify metrics are called correctly
+- Enhanced test_background_task_handles_timeout to assert metric increment
+- Enhanced test_background_task_handles_exception to assert metric increment
+- Updated PRD to mark feature as complete
+
+**Key points**: Completes comprehensive error handling for async BOM workflow. Full tracebacks logged for debugging (server-side only). Metrics enable monitoring of BOM task health (timeout rate, failure rate). Error messages sanitized for UI display. Task cancellation already implemented (session reset + new task triggers). 30s timeout already configured. All 8 PRD steps complete.
+
+**Next steps**: Consider adding comprehensive tests for async BOM workflow (test suite exists but needs live Azure credentials to run integration tests).
+

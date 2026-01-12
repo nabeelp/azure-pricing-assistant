@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import traceback
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -21,6 +22,7 @@ from src.agents import (
 )
 from src.agents.pricing_agent import parse_pricing_response
 from src.shared.errors import WorkflowError
+from src.shared.metrics import increment_errors
 from .models import ProposalBundle, SessionData, PricingResult
 from .session import InMemorySessionStore
 
@@ -88,7 +90,8 @@ async def _run_bom_task_background(
             logger.info(f"Background BOM task complete for session {session_id}")
     
     except asyncio.TimeoutError:
-        logger.error(f"BOM task timeout for session {session_id}")
+        logger.error(f"BOM task timeout for session {session_id}", exc_info=True)
+        increment_errors("bom_timeout", session_id=session_id)
         session_data = session_store.get(session_id)
         if session_data:
             session_data.bom_task_status = "error"
@@ -104,10 +107,19 @@ async def _run_bom_task_background(
         raise
     
     except Exception as e:
-        logger.error(f"BOM task error for session {session_id}: {e}")
+        # Log full traceback for debugging
+        error_traceback = traceback.format_exc()
+        logger.error(
+            f"BOM task error for session {session_id}: {e}\n{error_traceback}",
+            exc_info=True,
+            extra={"session_id": session_id, "error_type": type(e).__name__}
+        )
+        increment_errors("bom_task_failure", session_id=session_id)
+        
         session_data = session_store.get(session_id)
         if session_data:
             session_data.bom_task_status = "error"
+            # Sanitize error message for UI (no traceback)
             session_data.bom_task_error = f"BOM generation failed: {str(e)}"
             session_store.set(session_id, session_data)
 
