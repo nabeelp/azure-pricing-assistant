@@ -564,7 +564,7 @@
       "Implement efficient session lookup to minimize polling overhead",
       "Add HTTP caching headers (ETag or Last-Modified) to optimize polling efficiency"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {
@@ -578,7 +578,7 @@
       "Implement thread-safe update methods for concurrent access to BOM task state",
       "Add state transition validation (idle → queued → processing → complete/error)"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

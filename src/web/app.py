@@ -164,7 +164,7 @@ def history():
 
 @app.route('/api/bom', methods=['GET'])
 def get_bom():
-    """Get current BOM items for the session."""
+    """Get current BOM items for the session with caching headers."""
     session_id = session.get('session_id')
     
     if not session_id:
@@ -174,7 +174,28 @@ def get_bom():
     with trace.use_span(session_span, end_on_exit=False):
         try:
             result = run_coroutine(handlers.handle_get_bom(session_id))
-            return jsonify(result)
+            
+            # Generate ETag from bom_last_update timestamp
+            etag = None
+            if result.get('bom_last_update'):
+                etag = f'"{hash(result["bom_last_update"])}"'
+            
+            # Check If-None-Match header for ETag-based caching
+            if etag and request.headers.get('If-None-Match') == etag:
+                return '', 304  # Not Modified
+            
+            response = jsonify(result)
+            
+            # Add caching headers
+            if etag:
+                response.headers['ETag'] = etag
+            if result.get('bom_last_update'):
+                response.headers['Last-Modified'] = result['bom_last_update']
+            
+            # Add Cache-Control to allow conditional requests
+            response.headers['Cache-Control'] = 'no-cache'
+            
+            return response
         except Exception as e:
             return jsonify({'error': str(e), 'bom_items': []}), 500
 

@@ -173,10 +173,13 @@ class WebHandlers:
             session_id: Unique session identifier
 
         Returns:
-            Dictionary with current BOM items
+            Dictionary with:
+                - bom_items: List of BOM items
+                - bom_task_status: Current task status (idle, queued, processing, complete, error)
+                - bom_last_update: ISO 8601 timestamp of last BOM modification
+                - bom_task_error: Error message if status is error
         """
-        bom_items = await self.interface.get_bom_items(session_id)
-        return {"bom_items": bom_items}
+        return await self.interface.get_bom_items(session_id)
 
     def handle_get_proposal(self, session_id: str) -> Dict[str, Any]:
         """

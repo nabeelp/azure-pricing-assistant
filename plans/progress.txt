@@ -304,3 +304,34 @@
 **Key points**: Chat responses now return immediately without waiting for BOM generation. BOM tasks run in background with proper state tracking, error handling, and timeout protection. Previous BOM tasks are cancelled when new ones start to prevent resource leaks. Session reset properly cleans up in-progress tasks. All existing tests pass (325 passing, 14 pre-existing failures in Question Agent tests from previous streamlining). Feature enables responsive UI with polling-based BOM updates (foundation for next features).
 
 **Next steps**: Enhance /api/bom endpoint to expose task status for UI polling. Add UI polling mechanism to update BOM panel asynchronously.
+
+## 2026-01-12 - Enhanced /api/bom Endpoint for Polling-Based BOM Updates
+
+**What was done**:
+- Enhanced WebInterface.get_bom_items() to return dict with BOM task lifecycle fields:
+  * bom_items: List of BOM items (unchanged)
+  * bom_task_status: Task state (idle, queued, processing, complete, error)
+  * bom_last_update: ISO 8601 timestamp of last BOM modification
+  * bom_task_error: Error message when status is error (None otherwise)
+  * Returns default values for non-existent sessions (idle status, empty array)
+- Updated WebHandlers.handle_get_bom() to pass through enhanced response dict
+- Enhanced Flask /api/bom endpoint with HTTP caching for efficient polling:
+  * ETag generation: Hash of bom_last_update timestamp for change detection
+  * If-None-Match header checking: Returns 304 Not Modified when ETag matches
+  * Last-Modified header: Set from bom_last_update timestamp
+  * Cache-Control: no-cache header to enable conditional requests
+- Created comprehensive test suite tests/test_bom_endpoint_polling.py with 9 tests (all passing):
+  * test_get_bom_returns_task_status: Verifies bom_task_status field presence
+  * test_get_bom_returns_last_update_timestamp: ISO 8601 format validation ("2026-01-12T15:30:45")
+  * test_get_bom_returns_task_error: Error message exposure when status=error
+  * test_get_bom_idle_status_for_new_session: Default values for non-existent sessions
+  * test_get_bom_processing_status: Processing state during BOM generation
+  * test_get_bom_queued_status: Queued state when task waiting
+  * test_get_bom_null_fields_when_not_set: Optional field handling (None values)
+  * test_get_bom_includes_all_required_fields: Complete response schema validation
+  * test_get_bom_change_detection_with_timestamp: Timestamp-based change detection
+- Verified no regressions: 21 existing web handler tests still pass
+
+**Key points**: Endpoint now exposes full BOM task lifecycle for UI polling. HTTP caching (ETag/Last-Modified/304) optimizes polling by reducing bandwidth when BOM unchanged. UI can poll every 2-3 seconds to detect BOM updates without blocking chat responses. ISO 8601 timestamps enable reliable change detection. Foundation ready for UI polling implementation.
+
+**Next steps**: Update web UI (index.html) to poll /api/bom endpoint every 2-3 seconds and update BOM panel when changes detected.
