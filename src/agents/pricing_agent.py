@@ -244,6 +244,45 @@ PROCESS:
    - Multiply by quantity if quantity > 1
 3. Sum all monthly costs to get the total
 
+COMPLEX SERVICE PRICING HINTS:
+
+When calling azure_cost_estimate for these services, use these service_name values:
+
+1. **Virtual Machines**: service_name="Virtual Machines", sku_name=exact SKU (e.g., "Standard_D2s_v3")
+   - Disk pricing is separate; if BOM includes managed disks, price them as service_name="Storage"
+
+2. **App Service**: service_name="App Service", sku_name=exact SKU (e.g., "P1v3", "S1")
+   - Watch for Windows vs Linux pricing differences (Windows may include OS license)
+
+3. **SQL Database**: service_name="SQL Database", sku_name=exact SKU (e.g., "S1", "GP_Gen5_2")
+   - DTU-based SKUs: "S0", "S1", "P1", etc.
+   - vCore-based SKUs: "GP_Gen5_2", "BC_Gen5_4", etc.
+   - Storage may be billed separately for vCore-based
+
+4. **Storage**: service_name="Storage", sku_name=redundancy type (e.g., "Standard_LRS", "Premium_LRS")
+   - quantity represents GB of storage capacity
+   - Watch for tiered pricing (hot, cool, archive access tiers)
+
+5. **Azure Functions**: service_name="Azure Functions", sku_name=plan type (e.g., "Y1", "EP1")
+   - Consumption plan (Y1) has a generous free tier
+   - Execution time and memory consumption are billed separately
+
+6. **Azure Kubernetes Service**: service_name="Azure Kubernetes Service"
+   - Control plane is free; price only the worker node VMs
+   - Load Balancer: service_name="Load Balancer", sku_name="Standard"
+
+7. **Azure Cosmos DB**: service_name="Azure Cosmos DB", sku_name=throughput (e.g., "400RU", "1000RU")
+   - Provisioned throughput: RU/s (Request Units per second)
+   - Storage billed separately per GB
+
+8. **Azure Cache for Redis**: service_name="Azure Cache for Redis", sku_name=tier+size (e.g., "C1", "P1")
+
+IMPORTANT SERVICE NAME CONSISTENCY:
+- Always use the EXACT service name from the BOM (serviceName field)
+- Do NOT add or remove "Azure" prefix unless it matches the BOM
+- Examples: "App Service" not "Azure App Service", "Virtual Machines" not "VMs"
+- If the Pricing API requires different naming, handle that in your tool call parameters
+
 TOOL USAGE EXAMPLES:
 For a BOM item with serviceName="Virtual Machines", sku="Standard_D2s_v3", armRegionName="eastus":
 - Call azure_cost_estimate with service_name="Virtual Machines", sku_name="Standard_D2s_v3", region="eastus"

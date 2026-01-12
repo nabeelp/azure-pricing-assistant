@@ -161,3 +161,27 @@
 **Key points**: Addresses BOM-to-Pricing mismatch issues where BOM used "Azure App Service" but Pricing API expects "App Service". Consolidated service names (e.g., "Storage" covers Blob Storage, Azure Files, Managed Disks). Agent now receives explicit canonical name mappings in instructions. Module is importable and reusable for future validation/normalization needs.
 
 **Next steps**: Consider adding validation step in orchestrator to auto-normalize BOM service names before pricing lookup.
+## 2026-01-12 - Complex Azure Service Pricing Mapping Rules
+
+**What was done**:
+- Enhanced BOM Agent instructions with detailed mapping rules for 8 complex Azure services:
+  - Virtual Machines: SKU format guidance (Standard_{series}{size}_v{generation}), managed disk separation
+  - App Service: Tier-based SKU format (B1, S1, P1v3), Windows vs Linux pricing considerations
+  - SQL Database: DTU-based (S0, P1) vs vCore-based (GP_Gen5_2, BC_Gen5_4) SKU formats
+  - Storage Accounts: Redundancy options (Standard_LRS, Premium_LRS), capacity-based quantity
+  - Azure Functions: Consumption (Y1) vs Premium (EP1-EP3) plan SKUs
+  - Azure Kubernetes Service: Free control plane, worker node VM pricing
+  - Azure Cosmos DB: RU/s-based SKU format (400RU, 1000RU), separate storage billing
+  - Azure Cache for Redis: Tier+size SKU format (C1, P1)
+- Enhanced Pricing Agent instructions with service-specific hints for azure_cost_estimate calls
+- Added service name consistency guidance to ensure BOM and Pricing use identical service names
+- Created comprehensive test suite in test_complex_service_mapping.py with 22 tests covering:
+  - Service name accuracy (8 tests across services)
+  - SKU format validation (10 tests for different SKU types)
+  - Multi-service BOM scenarios (2 tests: web app with database, microservices architecture)
+  - Service name prefix consistency (2 tests: "App Service" vs "Azure Functions")
+- All 22 new tests pass, no regressions in existing 309 unit tests (1 pre-existing failure in test_proposal_storage.py)
+
+**Key points**: Provides comprehensive guidance for complex pricing scenarios. Virtual Machines separate compute from storage costs. SQL Database differentiates DTU vs vCore pricing models. Storage quantity represents GB capacity. Service name consistency ensures BOM serviceName matches Pricing API expectations. Instructions now serve as reference documentation for pricing architecture decisions.
+
+**Next steps**: Consider adding live integration tests with Azure Pricing MCP to validate actual pricing lookups for complex services.

@@ -325,6 +325,61 @@ SKU SELECTION GUIDANCE:
 - Always use azure_sku_discovery to find the actual available SKU options for your workload
 - Use microsoft_docs_search to verify current SKU availability and get latest tier recommendations
 
+COMPLEX SERVICE MAPPING RULES:
+
+1. **Virtual Machines**:
+   - serviceName: "Virtual Machines"
+   - SKU format: "Standard_{series}{size}_v{generation}" (e.g., "Standard_D2s_v3", "Standard_B2s")
+   - Common series: B (Basic), D (General Purpose), E (Memory Optimized), F (Compute Optimized)
+   - Consider managed disk pricing separately if needed (serviceName: "Storage", SKU: "StandardSSD_LRS" or "PremiumSSD_LRS")
+
+2. **App Service**:
+   - serviceName: "App Service"
+   - SKU format: Tier letter + number (e.g., "B1", "S1", "P1v2", "P1v3")
+   - Tiers: F (Free), D (Shared), B (Basic), S (Standard), P (Premium), I (Isolated)
+   - Example SKUs: "B1" (Basic), "S1" (Standard), "P1v3" (Premium v3)
+
+3. **SQL Database**:
+   - serviceName: "SQL Database"
+   - For DTU-based: SKU format is tier letter + number (e.g., "S0", "S1", "P1", "P2")
+   - For vCore-based: SKU format includes generation (e.g., "GP_Gen5_2", "BC_Gen5_4")
+   - Tiers: Basic (Basic), Standard (S), Premium (P), GeneralPurpose (GP), BusinessCritical (BC), Hyperscale (HS)
+   - Example SKUs: "S1" (Standard DTU), "GP_Gen5_2" (General Purpose 2 vCore)
+
+4. **Storage Accounts**:
+   - serviceName: "Storage"
+   - For Blob Storage: SKU represents redundancy (e.g., "Standard_LRS", "Standard_GRS", "Premium_LRS")
+   - Storage types are priced by capacity (GB/month) and operations (transactions)
+   - Redundancy options: LRS (Locally Redundant), ZRS (Zone Redundant), GRS (Geo-Redundant), GZRS (Geo-Zone Redundant)
+   - Performance tiers: Standard (HDD-based), Premium (SSD-based)
+   - Example SKUs: "Standard_LRS" (Standard locally redundant), "Premium_LRS" (Premium locally redundant)
+   - Note: Specify capacity in GB as quantity field (e.g., quantity: 100 for 100GB)
+
+5. **Azure Functions**:
+   - serviceName: "Azure Functions"
+   - Consumption Plan: SKU = "Y1" (pay-per-execution, included in free tier for first 1M executions)
+   - Premium Plan: SKU format "EP{size}" (e.g., "EP1", "EP2", "EP3")
+   - Dedicated App Service Plan: Use "App Service" with appropriate SKU
+
+6. **Azure Kubernetes Service (AKS)**:
+   - serviceName: "Azure Kubernetes Service"
+   - Control plane is free; only worker node VMs are charged
+   - For worker nodes, use "Virtual Machines" service with appropriate SKU
+   - Include Azure Load Balancer if using LoadBalancer services (serviceName: "Load Balancer", SKU: "Standard")
+
+7. **Azure Cosmos DB**:
+   - serviceName: "Azure Cosmos DB"
+   - SKU typically represents throughput in RU/s (Request Units per second)
+   - Provisioned throughput: Specify RU/s as SKU (e.g., "400RU", "1000RU")
+   - Serverless: Use SKU "Serverless"
+   - Storage is billed separately per GB
+
+8. **Azure Cache for Redis**:
+   - serviceName: "Azure Cache for Redis"
+   - SKU format: Tier letter + cache size (e.g., "C0", "C1", "P1", "P2")
+   - Tiers: C (Basic/Standard), P (Premium), E (Enterprise)
+   - Example SKUs: "C1" (Standard 1GB), "P1" (Premium 6GB)
+
 JSON SCHEMA (you MUST follow this exactly):
 [
   {{

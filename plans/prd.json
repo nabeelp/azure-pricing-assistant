@@ -485,7 +485,7 @@
       "Include meter name hints for Pricing Agent consumption",
       "Test pricing accuracy for App Service, SQL Database, Virtual Machines, Storage Accounts"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {
