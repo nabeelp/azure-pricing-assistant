@@ -335,3 +335,23 @@
 **Key points**: Endpoint now exposes full BOM task lifecycle for UI polling. HTTP caching (ETag/Last-Modified/304) optimizes polling by reducing bandwidth when BOM unchanged. UI can poll every 2-3 seconds to detect BOM updates without blocking chat responses. ISO 8601 timestamps enable reliable change detection. Foundation ready for UI polling implementation.
 
 **Next steps**: Update web UI (index.html) to poll /api/bom endpoint every 2-3 seconds and update BOM panel when changes detected.
+
+## 2026-01-12 - Asynchronous BOM Updates with UI Polling
+
+**What was done**:
+- Implemented client-side BOM polling in src/web/templates/index.html
+- Added startBOMPolling() and pollBOMStatus() JavaScript functions
+- Polling calls /api/bom endpoint to fetch BOM status and items
+- Change detection using bom_last_update timestamp - UI updates only when BOM changes
+- Visual status indicator in BOM panel header shows processing/complete/error states
+- Smart polling intervals: 1s during processing, 5s when idle/complete, 3s default
+- Polling lifecycle management: starts on page load, stops on session reset and page unload
+- Status indicator uses CSS animations (pulse for processing, colored dots for states)
+- Error messages displayed in BOM status text when bom_task_status is error
+- Removed manual BOM update from chat response handler (polling handles updates)
+- Updated PRD to mark feature as complete
+
+**Key points**: Completes the async BOM workflow. Chat responses now return immediately while BOM processes in background. UI polls for updates and shows real-time progress with visual feedback. Smart polling reduces server load. No UI blocking during BOM generation. Users see responsive chat with live BOM updates.
+
+**Next steps**: Consider adding comprehensive tests for error handling and task cancellation for background BOM updates (next high-priority item).
+

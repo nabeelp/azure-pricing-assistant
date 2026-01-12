@@ -593,7 +593,7 @@
       "Implement smart polling: increase interval to 5s when status is idle/complete, decrease to 1s when processing",
       "Stop polling on session reset or page unload using clearInterval"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {

@@ -83,11 +83,40 @@
             font-size: 18px;
             color: #333;
             margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .bom-header p {
             font-size: 12px;
             color: #666;
+        }
+
+        .bom-status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .bom-status-indicator.processing {
+            background: #ff9800;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .bom-status-indicator.complete {
+            background: #4caf50;
+        }
+
+        .bom-status-indicator.error {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         .bom-content {
@@ -474,8 +503,11 @@
 
             <div class="bom-section" id="bomSection">
                 <div class="bom-header">
-                    <h2>📋 Bill of Materials</h2>
-                    <p>Services identified from conversation</p>
+                    <h2>
+                        📋 Bill of Materials
+                        <span class="bom-status-indicator" id="bomStatusIndicator"></span>
+                    </h2>
+                    <p id="bomStatusText">Services identified from conversation</p>
                 </div>
                 <div class="bom-content" id="bomContent">
                     <div class="bom-empty">
@@ -498,6 +530,125 @@
     <script>
         let isDone = false;
         let lastUserMessage = '';
+        let bomPollingInterval = null;
+        let lastBomUpdate = null;
+        let currentPollingRate = 3000; // Start with 3 seconds
+
+        // BOM Polling functionality
+        function startBOMPolling() {
+            // Clear any existing interval
+            if (bomPollingInterval) {
+                clearInterval(bomPollingInterval);
+            }
+            
+            // Start polling
+            bomPollingInterval = setInterval(pollBOMStatus, currentPollingRate);
+            
+            // Initial poll
+            pollBOMStatus();
+        }
+
+        function stopBOMPolling() {
+            if (bomPollingInterval) {
+                clearInterval(bomPollingInterval);
+                bomPollingInterval = null;
+            }
+        }
+
+        async function pollBOMStatus() {
+            try {
+                const response = await fetch('/api/bom');
+                
+                if (!response.ok) {
+                    console.error('BOM polling failed:', response.status);
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                // Update status indicator
+                updateBOMStatusIndicator(data.bom_task_status, data.bom_task_error);
+                
+                // Check if BOM has changed using timestamp
+                const bomUpdated = data.bom_last_update !== lastBomUpdate;
+                if (bomUpdated) {
+                    lastBomUpdate = data.bom_last_update;
+                    
+                    // Update BOM items with animation for new/changed items
+                    if (data.bom_items && data.bom_items.length > 0) {
+                        updateBOM(data.bom_items, true);
+                    }
+                }
+                
+                // Adjust polling rate based on status
+                adjustPollingRate(data.bom_task_status);
+                
+            } catch (error) {
+                console.error('BOM polling error:', error);
+                // Don't show user-facing errors for polling failures
+            }
+        }
+
+        function updateBOMStatusIndicator(status, error) {
+            const indicator = document.getElementById('bomStatusIndicator');
+            const statusText = document.getElementById('bomStatusText');
+            
+            if (!indicator || !statusText) return;
+            
+            // Remove all status classes
+            indicator.className = 'bom-status-indicator';
+            
+            // Update based on status
+            switch (status) {
+                case 'processing':
+                case 'queued':
+                    indicator.classList.add('processing');
+                    statusText.textContent = 'Analyzing services...';
+                    break;
+                case 'error':
+                    indicator.classList.add('error');
+                    statusText.textContent = error ? `Error: ${error}` : 'Error processing BOM';
+                    break;
+                case 'complete':
+                    indicator.classList.add('complete');
+                    statusText.textContent = 'Services identified from conversation';
+                    break;
+                case 'idle':
+                default:
+                    // No indicator for idle state
+                    statusText.textContent = 'Services identified from conversation';
+                    break;
+            }
+        }
+
+        function adjustPollingRate(status) {
+            let newRate;
+            
+            switch (status) {
+                case 'processing':
+                case 'queued':
+                    newRate = 1000; // 1 second when actively processing
+                    break;
+                case 'idle':
+                case 'complete':
+                    newRate = 5000; // 5 seconds when idle or complete
+                    break;
+                case 'error':
+                    newRate = 5000; // 5 seconds on error (don't spam)
+                    break;
+                default:
+                    newRate = 3000; // Default 3 seconds
+            }
+            
+            // Only restart interval if rate changed significantly
+            if (Math.abs(newRate - currentPollingRate) >= 500) {
+                currentPollingRate = newRate;
+                if (bomPollingInterval) {
+                    clearInterval(bomPollingInterval);
+                    bomPollingInterval = setInterval(pollBOMStatus, currentPollingRate);
+                }
+            }
+        }
 
         // Error handling utilities
         function showErrorBanner(message) {
@@ -596,10 +747,8 @@
                         addMessage('assistant', data.response);
                     }
                     
-                    // Update BOM if available
-                    if (data.bom_items && data.bom_items.length > 0) {
-                        updateBOM(data.bom_items, data.bom_updated || false);
-                    }
+                    // BOM polling handles BOM updates now, no need to manually update
+                    // The polling mechanism will pick up changes automatically
                     
                     if (data.is_done) {
                         // Show friendly summary with confirmation
@@ -861,6 +1010,9 @@
                 return;
             }
             
+            // Stop BOM polling
+            stopBOMPolling();
+            
             try {
                 const response = await fetch('/api/reset', {
                     method: 'POST'
@@ -885,9 +1037,16 @@
                 document.getElementById('generateBtn').style.display = 'none';
                 isDone = false;
                 lastUserMessage = '';
+                lastBomUpdate = null;
                 
                 // Clear BOM
                 updateBOM([], false);
+                
+                // Reset BOM status
+                updateBOMStatusIndicator('idle', null);
+                
+                // Restart BOM polling
+                startBOMPolling();
                 
                 // Add initial greeting
                 addMessage('assistant', "Hello! I'll help you price an Azure solution. Let's start!");
@@ -915,9 +1074,15 @@
             }
         }
 
-        // Initial greeting
+        // Initial greeting and start BOM polling
         window.addEventListener('DOMContentLoaded', () => {
             addMessage('assistant', "Hello! I'll help you price an Azure solution. Let's start!");
+            startBOMPolling();
+        });
+
+        // Stop polling on page unload
+        window.addEventListener('beforeunload', () => {
+            stopBOMPolling();
         });
     </script>
 </body>
