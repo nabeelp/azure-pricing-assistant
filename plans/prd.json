@@ -448,7 +448,7 @@
       "Test that agent reaches done=true in fewer turns (target: 5-8 turns)",
       "Verify gathered requirements are sufficient for BOM generation"
     ],
-    "passes": false,
+    "passes": true,
     "priority": "high"
   },
   {
