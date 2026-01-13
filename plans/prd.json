@@ -1,79 +1,5 @@
 [
   {
-    "category": "functional",
-    "description": "Add web interface endpoint to retrieve previous proposals",
-    "steps": [
-      "Complete a full proposal generation workflow",
-      "Access the '/api/proposals' endpoint (or equivalent)",
-      "Verify the previous proposal is returned",
-      "Start a new session and generate another proposal",
-      "Verify both proposals are retrievable"
-    ],
-    "passes": true,
-    "priority": "medium"
-  },
-  {
-    "category": "functional",
-    "description": "Include links to Azure pricing pages in the proposal for transparency",
-    "steps": [
-      "Generate a proposal with at least 2 Azure services",
-      "Verify each service in the Cost Breakdown section has a pricing link",
-      "Click on a pricing link and verify it navigates to the correct Azure pricing page",
-      "Verify links use the format: https://azure.microsoft.com/pricing/details/{service}/"
-    ],
-    "passes": true,
-    "priority": "medium"
-  },
-  {
-    "category": "functional",
-    "description": "Proposal Agent should generate price citation links for each service",
-    "steps": [
-      "Review the Proposal Agent instructions in pricing_agent.py",
-      "Add instructions to include Azure pricing page URLs",
-      "Generate a test proposal",
-      "Verify pricing links are included in the output"
-    ],
-    "passes": true,
-    "priority": "medium"
-  },
-  {
-    "category": "observability",
-    "description": "Add OpenTelemetry metrics counters for chat turns",
-    "steps": [
-      "Create a metrics module in src/shared/",
-      "Define a counter metric for chat_turns_total",
-      "Instrument the chat turn handler to increment the counter",
-      "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
-      "View the metric in Aspire Dashboard or metrics viewer"
-    ],
-    "passes": true,
-    "priority": "medium"
-  },
-  {
-    "category": "observability",
-    "description": "Add OpenTelemetry metrics counters for proposal generations",
-    "steps": [
-      "Define a counter metric for proposals_generated_total",
-      "Instrument the proposal generation handler to increment the counter",
-      "Verify metric is exported to OTLP endpoint when ENABLE_OTEL=true",
-      "Generate multiple proposals and verify counter increases"
-    ],
-    "passes": true,
-    "priority": "medium"
-  },
-  {
-    "category": "observability",
-    "description": "Add OpenTelemetry metrics counters for errors",
-    "steps": [
-      "Define a counter metric for errors_total with labels for error_type",
-      "Instrument error handlers to increment the counter",
-      "Trigger various error conditions (invalid input, API failures)",
-      "Verify error counter increases with correct labels"
-    ],
-    "passes": true,
-    "priority": "medium"
-  },
-  {
     "category": "observability",
     "description": "Enhance logs with structured data using extra={} parameter for better querying",
     "steps": [
@@ -84,69 +10,6 @@
     ],
     "passes": false,
     "priority": "medium"
-  },
-  {
-    "category": "testing",
-    "description": "Add unit tests for Question Agent live behavior with mocked responses",
-    "steps": [
-      "Create test_question_agent.py with mock AzureAIAgentClient",
-      "Test adaptive questioning flow with different user experience levels",
-      "Test turn limit enforcement (20 turns max)",
-      "Test completion detection with done=true JSON response",
-      "Verify all tests pass without live Azure credentials"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "testing",
-    "description": "Add unit tests for Proposal Agent output structure validation",
-    "steps": [
-      "Create tests that validate proposal has all required sections",
-      "Test Executive Summary section is present and has content",
-      "Test Solution Architecture section lists services",
-      "Test Cost Breakdown is a properly formatted markdown table",
-      "Test Total Cost Summary includes monthly and annual costs",
-      "Test Next Steps and Assumptions sections are present"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "testing",
-    "description": "Add integration tests for incremental BOM building during discovery",
-    "steps": [
-      "Create test that simulates multi-turn conversation",
-      "Verify BOM is updated incrementally after service mentions",
-      "Verify BOM merge logic correctly updates existing items",
-      "Verify BOM is complete after done=true signal"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "testing",
-    "description": "Add integration tests for pricing agent with live MCP server",
-    "steps": [
-      "Create test_pricing_integration.py",
-      "Test pricing lookup for common Azure services",
-      "Test graceful fallback when pricing data unavailable",
-      "Test pricing total calculation accuracy"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "testing",
-    "description": "Add integration tests for proposal generation workflow",
-    "steps": [
-      "Create test that validates complete BOM → Pricing → Proposal flow",
-      "Verify proposal includes all BOM items",
-      "Verify proposal costs match pricing output",
-      "Verify proposal markdown is client-ready"
-    ],
-    "passes": true,
-    "priority": "high"
   },
   {
     "category": "functional",
@@ -379,18 +242,6 @@
     "priority": "medium"
   },
   {
-    "category": "ui",
-    "description": "Display error messages for failed API calls in web UI",
-    "steps": [
-      "Simulate a backend error during chat",
-      "Verify error message is displayed to user",
-      "Verify user can continue or reset session",
-      "Test error display for proposal generation failures"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
     "category": "documentation",
     "description": "Document AI evaluation framework setup and usage",
     "steps": [
@@ -416,18 +267,6 @@
   },
   {
     "category": "functional",
-    "description": "Handle pricing lookup failures gracefully with fallback to $0.00 and error notes",
-    "steps": [
-      "Simulate pricing lookup failure for a service",
-      "Verify unit_price and monthly_cost are set to 0.00",
-      "Verify error is added to errors array",
-      "Verify proposal notes pricing unavailability"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "functional",
     "description": "Validate Pricing Agent output includes pricing_date in ISO 8601 format",
     "steps": [
       "Generate pricing for any BOM",
@@ -437,56 +276,6 @@
     ],
     "passes": false,
     "priority": "medium"
-  },
-  {
-    "category": "functional",
-    "description": "Question Agent should only ask questions required to generate a BOM and pricing",
-    "steps": [
-      "Review Question Agent instructions and remove non-essential questions",
-      "Focus questions on: workload type, services needed, SKU/tier, quantity, region",
-      "Remove or deprioritize questions about architecture patterns not affecting pricing",
-      "Test that agent reaches done=true in fewer turns (target: 5-8 turns)",
-      "Verify gathered requirements are sufficient for BOM generation"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "functional",
-    "description": "Streamline Question Agent to prioritize pricing-relevant information",
-    "steps": [
-      "Update agent instructions to prioritize: service selection, SKU/tier, quantity, hours of operation, region",
-      "Add explicit guidance to skip deep-dive architecture questions",
-      "Test with sample conversation and verify faster completion",
-      "Verify BOM Agent can still generate accurate BOM from streamlined requirements"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "functional",
-    "description": "Improve BOM Agent identification of services that map to Azure pricing SKUs",
-    "steps": [
-      "Review BOM Agent instructions for service name accuracy",
-      "Add mapping guidance for common service name variations to official Azure service names",
-      "Ensure SKU names match Azure Retail Prices API format",
-      "Test BOM output against Pricing Agent and verify all items get valid prices",
-      "Add validation to reject BOM items with unmappable service/SKU combinations"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "functional",
-    "description": "Improve BOM-to-pricing mapping accuracy for complex services",
-    "steps": [
-      "Identify services with complex pricing models (VMs, Storage, Databases)",
-      "Add specific mapping rules in BOM Agent instructions",
-      "Include meter name hints for Pricing Agent consumption",
-      "Test pricing accuracy for App Service, SQL Database, Virtual Machines, Storage Accounts"
-    ],
-    "passes": true,
-    "priority": "high"
   },
   {
     "category": "functional",
@@ -540,85 +329,12 @@
     "priority": "medium"
   },
   {
-    "category": "functional",
-    "description": "Refactor orchestrator to run BOM updates as non-blocking background tasks",
-    "steps": [
-      "Extract run_incremental_bom_update() in src/core/orchestrator.py into async background task function",
-      "Modify run_question_turn() to spawn BOM task using asyncio.create_task() without awaiting",
-      "Return chat response immediately while BOM processes in background",
-      "Add task tracking fields to SessionData model (bom_task_handle, bom_task_status)",
-      "Implement task completion callback to update session state when BOM finishes",
-      "Add cancellation support for in-progress BOM tasks when new ones are triggered"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "functional",
-    "description": "Enhance existing /api/bom endpoint to support polling-based BOM updates",
-    "steps": [
-      "Ensure GET /api/bom endpoint in src/web/app.py returns current BOM state with task status",
-      "Add bom_task_status field to response JSON (values: idle, processing, complete, error)",
-      "Add bom_last_update timestamp field to response for change detection",
-      "Add bom_task_error field to response when status is error",
-      "Implement efficient session lookup to minimize polling overhead",
-      "Add HTTP caching headers (ETag or Last-Modified) to optimize polling efficiency"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "functional",
-    "description": "Enhance SessionData model with BOM task lifecycle tracking",
-    "steps": [
-      "Add bom_task_status field to SessionData in src/core/session.py (values: idle, queued, processing, complete, error)",
-      "Add bom_task_error field to store error messages from failed BOM updates",
-      "Add bom_last_update field with datetime to track when BOM was last modified",
-      "Add bom_task_handle field to store asyncio.Task reference for cancellation",
-      "Implement thread-safe update methods for concurrent access to BOM task state",
-      "Add state transition validation (idle → queued → processing → complete/error)"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "ui",
-    "description": "Update web UI to poll /api/bom endpoint for asynchronous BOM updates",
-    "steps": [
-      "Implement polling mechanism in src/web/templates/index.html using setInterval to call /api/bom every 2-3 seconds",
-      "Compare bom_last_update timestamp from response to detect changes and update UI only when BOM changes",
-      "Update updateBOM() function to render new/changed BOM items with animation",
-      "Add visual feedback for bom_processing state (spinner or progress indicator in BOM panel based on bom_task_status)",
-      "Display error messages in UI when bom_task_status is error using bom_task_error field",
-      "Implement smart polling: increase interval to 5s when status is idle/complete, decrease to 1s when processing",
-      "Stop polling on session reset or page unload using clearInterval"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
-    "category": "functional",
-    "description": "Implement error handling and task cancellation for background BOM updates",
-    "steps": [
-      "Wrap async BOM task execution in try/except to catch all exceptions",
-      "Store caught exceptions in SessionData.bom_task_error with full traceback",
-      "Expose errors via /api/bom response bom_task_error field with sanitized error message for UI polling",
-      "Implement task cancellation when user resets session (call task.cancel() on bom_task_handle)",
-      "Implement task cancellation when new BOM update is triggered mid-processing (cancel previous, start new)",
-      "Add timeout configuration for BOM agent calls (default 30s) using asyncio.wait_for()",
-      "Implement graceful fallback when MCP tools fail (log error, return partial BOM with error note)",
-      "Add OpenTelemetry metrics for BOM task failures and timeout rates"
-    ],
-    "passes": true,
-    "priority": "high"
-  },
-  {
     "category": "testing",
     "description": "Add comprehensive tests for async BOM workflow",
     "steps": [
       "Create test_async_bom.py with unit tests for background BOM task execution",
       "Test non-blocking behavior: verify chat response returns before BOM task completes",
-      "Test polling response sequence: verify /api/bom status transitions from idle → processing → complete with correct bom_last_update timestamps",
+      "Test polling response sequence: verify /api/bom status transitions from idle \u00e2\u2020\u2019 processing \u00e2\u2020\u2019 complete with correct bom_last_update timestamps",
       "Test concurrent BOM updates: multiple sessions updating BOMs simultaneously without interference",
       "Test task cancellation: verify previous BOM task is cancelled when new one starts",
       "Test error handling: simulate MCP failures and verify bom_task_status=error with bom_task_error message in /api/bom response",
