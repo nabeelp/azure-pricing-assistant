@@ -167,8 +167,14 @@ def get_bom():
     """Get current BOM items for the session with caching headers."""
     session_id = session.get('session_id')
     
+    # Return empty BOM if no session exists yet (before first message)
     if not session_id:
-        return jsonify({'error': 'No active session', 'bom_items': []}), 400
+        return jsonify({
+            'bom_items': [],
+            'bom_task_status': 'idle',
+            'bom_last_update': None,
+            'bom_task_error': None
+        })
     
     session_span = get_or_create_session_span(session_id)
     with trace.use_span(session_span, end_on_exit=False):
