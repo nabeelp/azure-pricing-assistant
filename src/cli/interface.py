@@ -86,7 +86,7 @@ class CLIInterface(PricingInterface):
         Args:
             session_id: Unique identifier for the chat session
         """
-        self.handler.handle_reset_session(self.context, session_id)
+        await self.handler.handle_reset_session(self.context, session_id)
 
     async def get_session_history(self, session_id: str) -> list:
         """
@@ -100,3 +100,15 @@ class CLIInterface(PricingInterface):
         """
         history_dict = self.handler.get_session_history(self.context, session_id)
         return history_dict.get("history", [])
+
+    def get_stored_proposal(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get stored proposal for a session.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with bom, pricing, proposal, or error
+        """
+        return self.handler.get_stored_proposal(self.context, session_id)

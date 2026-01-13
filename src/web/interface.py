@@ -70,7 +70,7 @@ class WebInterface(PricingInterface):
         Args:
             session_id: Unique identifier for the chat session
         """
-        self.handler.handle_reset_session(self.context, session_id)
+        await self.handler.handle_reset_session(self.context, session_id)
 
     async def get_session_history(self, session_id: str) -> list:
         """
@@ -85,17 +85,49 @@ class WebInterface(PricingInterface):
         history_dict = self.handler.get_session_history(self.context, session_id)
         return history_dict.get("history", [])
 
-    async def get_bom_items(self, session_id: str) -> list:
+    async def get_bom_items(self, session_id: str) -> Dict[str, Any]:
         """
-        Get current BOM items for a session.
+        Get current BOM items and task status for a session.
 
         Args:
             session_id: Unique identifier for the chat session
 
         Returns:
-            List of BOM items
+            Dictionary with:
+                - bom_items: List of BOM items
+                - bom_task_status: Current task status (idle, queued, processing, complete, error)
+                - bom_last_update: ISO 8601 timestamp of last BOM modification (or None)
+                - bom_task_error: Error message if status is error (or None)
         """
         session_data = self.context.session_store.get(session_id)
         if not session_data:
-            return []
-        return session_data.bom_items or []
+            return {
+                "bom_items": [],
+                "bom_task_status": "idle",
+                "bom_last_update": None,
+                "bom_task_error": None
+            }
+        
+        # Format bom_last_update as ISO 8601 string if present
+        last_update_str = None
+        if session_data.bom_last_update:
+            last_update_str = session_data.bom_last_update.isoformat()
+        
+        return {
+            "bom_items": session_data.bom_items or [],
+            "bom_task_status": session_data.bom_task_status,
+            "bom_last_update": last_update_str,
+            "bom_task_error": session_data.bom_task_error
+        }
+
+    def get_stored_proposal(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get stored proposal for a session.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with bom, pricing, proposal, or error
+        """
+        return self.handler.get_stored_proposal(self.context, session_id)

@@ -13,6 +13,7 @@ from src.core.session import InMemorySessionStore
 from src.shared.async_utils import run_coroutine
 from src.shared.logging import setup_logging
 from src.shared.tracing import configure_tracing
+from src.shared.metrics import configure_metrics
 from src.web.interface import WebInterface
 from src.web.handlers import WebHandlers
 from src.web.session_tracing import end_session_span, get_or_create_session_span
@@ -33,6 +34,9 @@ setup_logging(
 
 # Configure OpenTelemetry traces (OTLP/gRPC) and enable Agent Framework spans.
 configure_tracing(service_name="azure-pricing-assistant-web")
+
+# Configure OpenTelemetry metrics (OTLP/gRPC)
+configure_metrics()
 
 # Resolve template directory
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -160,7 +164,7 @@ def history():
 
 @app.route('/api/bom', methods=['GET'])
 def get_bom():
-    """Get current BOM items for the session."""
+    """Get current BOM items for the session with caching headers."""
     session_id = session.get('session_id')
     
     if not session_id:
@@ -170,9 +174,57 @@ def get_bom():
     with trace.use_span(session_span, end_on_exit=False):
         try:
             result = run_coroutine(handlers.handle_get_bom(session_id))
-            return jsonify(result)
+            
+            # Generate ETag from bom_last_update timestamp
+            etag = None
+            if result.get('bom_last_update'):
+                etag = f'"{hash(result["bom_last_update"])}"'
+            
+            # Check If-None-Match header for ETag-based caching
+            if etag and request.headers.get('If-None-Match') == etag:
+                return '', 304  # Not Modified
+            
+            response = jsonify(result)
+            
+            # Add caching headers
+            if etag:
+                response.headers['ETag'] = etag
+            if result.get('bom_last_update'):
+                response.headers['Last-Modified'] = result['bom_last_update']
+            
+            # Add Cache-Control to allow conditional requests
+            response.headers['Cache-Control'] = 'no-cache'
+            
+            return response
         except Exception as e:
             return jsonify({'error': str(e), 'bom_items': []}), 500
+
+
+@app.route('/api/proposal', methods=['GET'])
+def get_proposal():
+    """Get stored proposal for the session."""
+    session_id = session.get('session_id')
+    
+    if not session_id:
+        return jsonify({'error': 'No active session'}), 400
+    
+    session_span = get_or_create_session_span(session_id)
+    with trace.use_span(session_span, end_on_exit=False):
+        try:
+            result = handlers.handle_get_proposal(session_id)
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/proposals', methods=['GET'])
+def get_all_proposals():
+    """Get all stored proposals across all sessions."""
+    try:
+        result = handlers.handle_get_all_proposals()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e), 'proposals': [], 'count': 0}), 500
 
 
 @app.route('/health')

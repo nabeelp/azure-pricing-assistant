@@ -1,0 +1,347 @@
+[
+  {
+    "category": "observability",
+    "description": "Enhance logs with structured data using extra={} parameter for better querying",
+    "steps": [
+      "Identify key logging statements in agents and handlers",
+      "Add structured fields using extra={} parameter (e.g., session_id, agent_name, turn_count)",
+      "Verify structured fields appear in log output",
+      "Query logs in Aspire Dashboard using structured fields"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Extend incremental BOM approach to pricing calculation during discovery",
+    "steps": [
+      "Modify orchestrator to invoke Pricing Agent incrementally",
+      "Calculate prices for BOM items as they are added",
+      "Display running cost estimate in web UI BOM panel",
+      "Update pricing when BOM items change"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Add running cost estimate display to web UI BOM panel",
+    "steps": [
+      "Modify BOM panel to show estimated costs per item",
+      "Add total cost estimate at bottom of BOM panel",
+      "Update estimates in real-time as BOM changes",
+      "Format costs with currency symbol"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "performance",
+    "description": "Optimize Question Agent response times",
+    "steps": [
+      "Profile Question Agent response latency",
+      "Identify slow MCP tool calls",
+      "Implement caching for repeated documentation lookups",
+      "Measure and verify response time improvement"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "performance",
+    "description": "Optimize BOM Agent MCP tool calls",
+    "steps": [
+      "Profile BOM Agent response latency",
+      "Reduce unnecessary azure_sku_discovery calls",
+      "Batch SKU lookups where possible",
+      "Measure and verify response time improvement"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "performance",
+    "description": "Optimize Pricing Agent MCP tool calls",
+    "steps": [
+      "Profile Pricing Agent response latency",
+      "Batch pricing lookups where possible",
+      "Cache pricing data within session",
+      "Measure and verify response time improvement"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Tune Question Agent adaptive questioning based on workload type",
+    "steps": [
+      "Test Question Agent with web application workload",
+      "Verify questions adapt to web-specific concerns (traffic, scaling, CDN)",
+      "Test with database workload and verify database-specific questions",
+      "Test with ML workload and verify ML-specific questions (GPU, training vs inference)"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "functional",
+    "description": "Tune Question Agent adaptive questioning based on user experience level",
+    "steps": [
+      "Test with technical user responses (specific SKUs, metrics)",
+      "Verify agent asks technical follow-ups",
+      "Test with non-technical user responses (general needs)",
+      "Verify agent explains concepts and offers examples"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "evaluation",
+    "description": "Set up AI evaluation framework for agent output quality",
+    "steps": [
+      "Create evaluation test dataset with sample requirements",
+      "Define quality metrics (relevance, accuracy, completeness)",
+      "Implement evaluation harness using azure-ai-evaluation",
+      "Run evaluation and capture baseline scores"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for Question Agent quality assessment",
+    "steps": [
+      "Define 10+ sample user personas with different workload types",
+      "Create expected questions for each persona",
+      "Define ground truth for minimum required information gathering",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for BOM Agent accuracy assessment",
+    "steps": [
+      "Define 10+ sample requirements with known correct BOM outputs",
+      "Include edge cases (multi-region, specialty workloads)",
+      "Define SKU selection accuracy criteria",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for Pricing Agent accuracy assessment",
+    "steps": [
+      "Define sample BOMs with known correct pricing",
+      "Include services with various pricing models",
+      "Define pricing accuracy tolerance (within 5%)",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "evaluation",
+    "description": "Create evaluation dataset for Proposal Agent quality assessment",
+    "steps": [
+      "Define sample proposals with quality ratings",
+      "Define criteria for professional tone assessment",
+      "Define completeness checklist (all sections present)",
+      "Document dataset in tests/evaluation/"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "testing",
+    "description": "Add tests for web API endpoint /api/bom",
+    "steps": [
+      "Test GET /api/bom returns empty array for new session",
+      "Test GET /api/bom returns BOM items after chat with service mentions",
+      "Test GET /api/bom returns 400 for invalid session",
+      "Verify response schema matches expected format"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "testing",
+    "description": "Add tests for SSE streaming proposal generation endpoint",
+    "steps": [
+      "Test GET /api/generate-proposal-stream returns SSE events",
+      "Verify agent_start events are emitted for each agent",
+      "Verify workflow_complete event contains proposal data",
+      "Test error event handling for failed generations"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Question Agent should look up recommended Azure architectures for workload types",
+    "steps": [
+      "User says 'I need a web application'",
+      "Verify agent uses microsoft_docs_search to find reference architectures",
+      "Verify agent asks about architecture components from the reference",
+      "Verify questions include networking, gateways, security features"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Question Agent should ask about architecture components (private networking, Application Gateway, WAF)",
+    "steps": [
+      "Start a chat session for a production web application",
+      "Verify agent asks about VNet integration or private networking",
+      "Verify agent asks about Application Gateway or load balancer",
+      "Verify agent asks about WAF for security",
+      "Verify these are included in the final requirements summary"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Question Agent should ask about API Management and private endpoints",
+    "steps": [
+      "Start a chat session for an API backend workload",
+      "Verify agent asks about API Management requirements",
+      "Verify agent asks about private endpoints for data services",
+      "Verify architecture components are included in requirements"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Pricing Agent should suggest cost optimization alternatives using azure_region_recommend",
+    "steps": [
+      "Generate pricing for a multi-service BOM",
+      "Verify Pricing Agent calls azure_region_recommend tool",
+      "Verify savings_options array includes region recommendations",
+      "Verify estimated_monthly_savings values are calculated"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "ui",
+    "description": "Add session history persistence across browser refreshes",
+    "steps": [
+      "Start a chat session in the web UI",
+      "Send 3-4 messages",
+      "Refresh the browser page",
+      "Verify chat history is restored from session",
+      "Verify BOM items are restored"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "documentation",
+    "description": "Document AI evaluation framework setup and usage",
+    "steps": [
+      "Create docs/evaluation.md with setup instructions",
+      "Document how to create evaluation datasets",
+      "Document how to run evaluations",
+      "Document how to interpret results"
+    ],
+    "passes": false,
+    "priority": "low"
+  },
+  {
+    "category": "documentation",
+    "description": "Add API documentation for web endpoints",
+    "steps": [
+      "Document all REST API endpoints in README or docs/",
+      "Include request/response schemas for each endpoint",
+      "Include example curl commands",
+      "Include error response formats"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Validate Pricing Agent output includes pricing_date in ISO 8601 format",
+    "steps": [
+      "Generate pricing for any BOM",
+      "Verify pricing_date field is present",
+      "Verify format is YYYY-MM-DD (ISO 8601)",
+      "Verify date is current or recent"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Implement RAG-based SKU discovery in BOM Agent using Azure pricing documentation",
+    "steps": [
+      "Create or identify a knowledge base of Azure SKUs and their capabilities",
+      "Integrate RAG retrieval into BOM Agent workflow",
+      "Query knowledge base when selecting SKUs based on requirements",
+      "Verify SKU recommendations match workload requirements (size, performance tier)"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Use Microsoft Learn MCP for RAG-based SKU capability lookup",
+    "steps": [
+      "Configure BOM Agent to query Microsoft Learn for SKU specifications",
+      "Search for SKU sizing guidance based on workload metrics",
+      "Use retrieved information to select appropriate SKU tier",
+      "Test SKU selection accuracy for various workload sizes"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "functional",
+    "description": "Enhance BOM Agent with RAG to retrieve SKU pricing tiers and features",
+    "steps": [
+      "Use azure_sku_discovery MCP tool to retrieve available SKUs for each service",
+      "Parse SKU capabilities (vCPUs, memory, IOPS) from retrieved data",
+      "Match customer requirements to appropriate SKU based on capabilities",
+      "Add fallback logic when exact match is not available"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "deployment",
+    "description": "Deploy the Azure Pricing Assistant solution to Azure using azd CLI",
+    "steps": [
+      "Ensure azure.yaml and infra/ bicep templates are properly configured",
+      "Run 'azd auth login' to authenticate with Azure",
+      "Run 'azd up' to provision and deploy all resources",
+      "Verify deployment completes successfully with all resources created",
+      "Test the deployed web application endpoint",
+      "Verify environment variables are properly configured in Azure App Service",
+      "Verify Azure AI Foundry connection is working in production"
+    ],
+    "passes": false,
+    "priority": "medium"
+  },
+  {
+    "category": "testing",
+    "description": "Add comprehensive tests for async BOM workflow",
+    "steps": [
+      "Create test_async_bom.py with unit tests for background BOM task execution",
+      "Test non-blocking behavior: verify chat response returns before BOM task completes",
+      "Test polling response sequence: verify /api/bom status transitions from idle \u00e2\u2020\u2019 processing \u00e2\u2020\u2019 complete with correct bom_last_update timestamps",
+      "Test concurrent BOM updates: multiple sessions updating BOMs simultaneously without interference",
+      "Test task cancellation: verify previous BOM task is cancelled when new one starts",
+      "Test error handling: simulate MCP failures and verify bom_task_status=error with bom_task_error message in /api/bom response",
+      "Test timeout handling: simulate slow BOM agent and verify timeout triggers after configured duration",
+      "Add integration test with live BOM agent to validate complete async workflow"
+    ],
+    "passes": false,
+    "priority": "high"
+  }
+]

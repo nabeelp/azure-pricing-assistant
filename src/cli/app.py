@@ -26,6 +26,7 @@ from src.shared.async_utils import create_event_loop
 from src.shared.errors import WorkflowError
 from src.shared.logging import setup_logging
 from src.shared.tracing import configure_tracing
+from src.shared.metrics import configure_metrics, increment_chat_turns, increment_proposals_generated, increment_errors
 
 
 async def run_cli_workflow() -> None:
@@ -55,13 +56,22 @@ async def run_cli_workflow() -> None:
         if not user_input.strip():
             continue
 
-        turn_result = await interface.chat_turn(session_id, user_input)
+        try:
+            # Increment chat turns metric
+            increment_chat_turns(session_id)
+            
+            turn_result = await interface.chat_turn(session_id, user_input)
 
-        if "error" in turn_result:
-            print_error(turn_result["error"])
+            if "error" in turn_result:
+                print_error(turn_result["error"])
+                increment_errors("chat_error", session_id)
+                continue
+
+            print_agent_response(turn_result["response"])
+        except Exception as e:
+            print_error(str(e))
+            increment_errors("chat_error", session_id)
             continue
-
-        print_agent_response(turn_result["response"])
 
         if turn_result.get("is_done", False):
             is_done = True
@@ -134,9 +144,14 @@ async def run_cli_workflow() -> None:
             bom_text = data.get("bom", "")
             pricing_text = data.get("pricing", "")
             proposal_text = data.get("proposal", "")
+            
+            # Increment successful proposal generation metric
+            increment_proposals_generated(session_id, success=True)
         
         elif event_type == "error":
             print_error(message or "Unknown error")
+            increment_errors("proposal_stream_error", session_id)
+            increment_proposals_generated(session_id, success=False)
             return
 
     # Display final proposal
@@ -169,6 +184,9 @@ async def main() -> None:
 
     # Configure OpenTelemetry traces (OTLP/gRPC) and enable Agent Framework spans.
     configure_tracing(service_name="azure-pricing-assistant-cli")
+    
+    # Configure OpenTelemetry metrics (OTLP/gRPC)
+    configure_metrics()
 
     print("Azure Pricing Assistant")
     print("=" * 60)

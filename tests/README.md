@@ -62,6 +62,28 @@ RUN_LIVE_BOM_INTEGRATION=1 pytest tests/test_bom_integration.py -v -s
 2. Database Workload (SQL Database)
 3. Multi-Service Solution (App Service + SQL + Storage)
 
+#### `test_pricing_integration.py`
+Live Pricing Agent tests requiring Azure AI project credentials and Azure Pricing MCP server.
+
+**Prerequisites:**
+- `AZURE_AI_PROJECT_ENDPOINT` environment variable set
+- `AZURE_AI_MODEL_DEPLOYMENT_NAME` environment variable set
+- Azure credentials available (via `az login` or `DefaultAzureCredential`)
+- Azure Pricing MCP server running at `http://localhost:8080/mcp`
+  - Set `AZURE_PRICING_MCP_URL` environment variable if running elsewhere
+
+**Run:**
+```bash
+RUN_LIVE_PRICING_INTEGRATION=1 pytest tests/test_pricing_integration.py -v -s
+```
+
+**Test Scenarios:**
+1. Simple App Service pricing lookup
+2. Multiple services pricing with total calculation
+3. Graceful fallback for unavailable pricing ($0.00 with error notes)
+4. Total calculation accuracy validation
+5. Region-specific pricing variations
+
 ### End-to-End Tests
 
 #### `test_end_to_end_workflow.py`

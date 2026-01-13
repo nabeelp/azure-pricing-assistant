@@ -163,6 +163,11 @@ class WorkflowHandler:
                     f"Proposal={len(bundle.proposal_text)} chars"
                 )
 
+                # Store proposal in session for retrieval
+                session_data.proposal = bundle
+                context.session_store.set(session_id, session_data)
+                logger.debug(f"Proposal stored in session {session_id}")
+
                 # End session span after successful proposal generation
                 end_session_span(session_id)
                 logger.debug(f"Session span ended for {session_id}")
@@ -178,7 +183,7 @@ class WorkflowHandler:
                 end_session_span(session_id)
                 return {"error": str(e)}
 
-    def handle_reset_session(
+    async def handle_reset_session(
         self,
         context: InterfaceContext,
         session_id: str,
@@ -193,7 +198,7 @@ class WorkflowHandler:
         Returns:
             Dictionary with status
         """
-        reset_session(context.session_store, session_id)
+        await reset_session(context.session_store, session_id)
         return {"status": "reset"}
 
     def get_session_history(
@@ -218,3 +223,35 @@ class WorkflowHandler:
             return {"error": "Session not found", "history": []}
 
         return {"history": session_data.history}
+
+    def get_stored_proposal(
+        self,
+        context: InterfaceContext,
+        session_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Get stored proposal for a session.
+
+        Args:
+            context: InterfaceContext with session store
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with:
+                - 'bom': Bill of Materials text
+                - 'pricing': Pricing calculation text
+                - 'proposal': Professional proposal Markdown
+                - 'error': Error message if no proposal found
+        """
+        session_data = context.session_store.get(session_id)
+        if not session_data:
+            return {"error": "Session not found"}
+
+        if not session_data.proposal:
+            return {"error": "No proposal found for this session"}
+
+        return {
+            "bom": session_data.proposal.bom_text,
+            "pricing": session_data.proposal.pricing_text,
+            "proposal": session_data.proposal.proposal_text,
+        }

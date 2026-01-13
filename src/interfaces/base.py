@@ -66,3 +66,20 @@ class PricingInterface(ABC):
             List of chat messages (dict with 'role' and 'content')
         """
         pass
+
+    @abstractmethod
+    def get_stored_proposal(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get the stored proposal for a session.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with:
+                - 'bom': Bill of Materials text
+                - 'pricing': Pricing calculation text
+                - 'proposal': Professional proposal Markdown
+                - 'error': Error message if no proposal found
+        """
+        pass
