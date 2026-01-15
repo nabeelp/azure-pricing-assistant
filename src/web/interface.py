@@ -33,10 +33,12 @@ class WebInterface(PricingInterface):
             message: User's input message
 
         Returns:
-            JSON-compatible dictionary with response, is_done, and history
+            JSON-compatible dictionary with response, is_done, BOM fields, and errors
         """
         async with self.context as ctx:
-            result = await self.handler.handle_chat_turn(ctx, session_id, message)
+            result = await self.handler.handle_chat_turn(
+                ctx, session_id, message, run_bom_in_background=False
+            )
             
             # Log BOM updates for debugging (data is returned via handle_chat in handlers.py)
             if result.get("bom_updated"):
@@ -47,6 +49,11 @@ class WebInterface(PricingInterface):
             return {
                 "response": result.get("response", ""),
                 "is_done": result.get("is_done", False),
+                "requirements_summary": result.get("requirements_summary"),
+                "bom_items": result.get("bom_items", []),
+                "bom_updated": result.get("bom_updated", False),
+                "bom_task_status": result.get("bom_task_status"),
+                "bom_task_error": result.get("bom_task_error"),
                 "error": result.get("error"),
             }
 

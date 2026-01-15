@@ -508,6 +508,7 @@
                         <span class="bom-status-indicator" id="bomStatusIndicator"></span>
                     </h2>
                     <p id="bomStatusText">Services identified from conversation</p>
+                    <p id="bomLastUpdated" style="font-size: 11px; color: #888; margin-top: 6px;">Last updated: —</p>
                 </div>
                 <div class="bom-content" id="bomContent">
                     <div class="bom-empty">
@@ -568,6 +569,7 @@
                 
                 // Update status indicator
                 updateBOMStatusIndicator(data.bom_task_status, data.bom_task_error);
+                updateBOMLastUpdated(data.bom_last_update);
                 
                 // Check if BOM has changed using timestamp
                 const bomUpdated = data.bom_last_update !== lastBomUpdate;
@@ -619,6 +621,24 @@
                     statusText.textContent = 'Services identified from conversation';
                     break;
             }
+        }
+
+        function updateBOMLastUpdated(lastUpdated) {
+            const lastUpdatedEl = document.getElementById('bomLastUpdated');
+            if (!lastUpdatedEl) return;
+
+            if (!lastUpdated) {
+                lastUpdatedEl.textContent = 'Last updated: —';
+                return;
+            }
+
+            const parsed = new Date(lastUpdated);
+            if (Number.isNaN(parsed.getTime())) {
+                lastUpdatedEl.textContent = 'Last updated: —';
+                return;
+            }
+
+            lastUpdatedEl.textContent = `Last updated: ${parsed.toLocaleString()}`;
         }
 
         function adjustPollingRate(status) {
@@ -747,8 +767,17 @@
                         addMessage('assistant', data.response);
                     }
                     
-                    // BOM polling handles BOM updates now, no need to manually update
-                    // The polling mechanism will pick up changes automatically
+                    if (data.bom_task_status) {
+                        updateBOMStatusIndicator(data.bom_task_status, data.bom_task_error);
+                    }
+
+                    if (data.bom_items && data.bom_items.length > 0) {
+                        updateBOM(data.bom_items, data.bom_updated);
+                    }
+
+                    if (data.bom_last_update) {
+                        updateBOMLastUpdated(data.bom_last_update);
+                    }
                     
                     if (data.is_done) {
                         // Show friendly summary with confirmation
@@ -1041,6 +1070,7 @@
                 
                 // Clear BOM
                 updateBOM([], false);
+                updateBOMLastUpdated(null);
                 
                 // Reset BOM status
                 updateBOMStatusIndicator('idle', null);

@@ -60,6 +60,7 @@ class WorkflowHandler:
         context: InterfaceContext,
         session_id: str,
         message: str,
+        run_bom_in_background: bool = True,
     ) -> Dict[str, Any]:
         """
         Process a single chat turn with the Question Agent.
@@ -70,6 +71,7 @@ class WorkflowHandler:
             context: InterfaceContext with initialized client and session store
             session_id: Unique identifier for the chat session
             message: User's input message
+            run_bom_in_background: Whether incremental BOM runs as a background task
 
         Returns:
             Dictionary with:
@@ -96,6 +98,7 @@ class WorkflowHandler:
                     context.session_store,
                     session_id,
                     message,
+                    run_bom_in_background=run_bom_in_background,
                 )
                 logger.debug(
                     f"Chat turn complete for {session_id}: is_done={result.get('is_done')}"
