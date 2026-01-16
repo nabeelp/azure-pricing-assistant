@@ -38,11 +38,12 @@ configure_tracing(service_name="azure-pricing-assistant-web")
 # Configure OpenTelemetry metrics (OTLP/gRPC)
 configure_metrics()
 
-# Resolve template directory
+# Resolve template and static directories
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-app = Flask(__name__, template_folder=TEMPLATES_DIR)
+app = Flask(__name__, template_folder=TEMPLATES_DIR, static_folder=STATIC_DIR)
 app.secret_key = get_flask_secret()
 
 # Initialize shared components
