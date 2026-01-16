@@ -793,7 +793,7 @@ async function resetChat() {
         updateBOMStatusIndicator("idle", null);
 
         startBOMPolling();
-        addMessage("assistant", "Hello! I'll help you price an Azure solution. Let's start!");
+        addMessage("assistant", "Hello!\nI'm here to help you price an Azure solution. You can start by telling me the requirements, or give me a transcript from a customer meeting.");
     } catch (error) {
         console.error("Reset error:", error);
         showErrorBanner("Failed to reset session");
@@ -847,7 +847,7 @@ function attachEventHandlers() {
 function initializeChat() {
     cacheDom();
     attachEventHandlers();
-    addMessage("assistant", "Hello! I'll help you price an Azure solution. Let's start!");
+    addMessage("assistant", "Hello!\nI'm here to help you price an Azure solution. You can start by telling me the requirements, or give me a transcript from a customer meeting.");
     startBOMPolling();
 }
 
