@@ -118,6 +118,12 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
     5.  **Next Steps**: Deployment and validation recommendations.
     6.  **Assumptions**: Operating hours, region, pricing date.
 
+### 4.5. Web UI (Incremental BOM Display)
+-   **Live BOM Panel**: The Bill of Materials must appear in the **BOM side panel** while the user answers questions.
+-   **Placement**: The BOM panel is the dedicated UI area separate from the chat thread; chat messages remain in the main chat pane.
+-   **Real-Time Updates**: As incremental BOM updates complete, the panel should refresh to show new/updated items without requiring a page refresh.
+-   **Status Feedback**: The BOM panel should reflect processing states (queued/processing/complete/error) so users understand when updates are in progress.
+
 ## 5. Technical Architecture
 
 ### 5.1. Technology Stack

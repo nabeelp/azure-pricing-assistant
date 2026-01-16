@@ -37,7 +37,7 @@ async def run_cli_workflow() -> None:
     session_id = "cli-session"
 
     # Initial greeting
-    greeting = "Hello! I'll help you price an Azure solution. Let's start!"
+    greeting = "Hello!\nI'm here to help you price an Azure solution. You can start by telling me the requirements, or give me a transcript from a customer meeting."
     first_turn = await interface.chat_turn(session_id, greeting)
 
     if "error" in first_turn:

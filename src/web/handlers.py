@@ -56,6 +56,8 @@ class WebHandlers:
                 "requirements_summary": result.get("requirements_summary"),
                 "bom_items": result.get("bom_items", []),
                 "bom_updated": result.get("bom_updated", False),
+                "bom_task_status": result.get("bom_task_status"),
+                "bom_task_error": result.get("bom_task_error"),
                 "error": result.get("error"),
             }
         except Exception as e:

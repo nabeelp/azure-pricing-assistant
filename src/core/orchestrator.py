@@ -130,6 +130,7 @@ async def run_question_turn(
     session_id: str,
     user_message: str,
     enable_incremental_bom: bool = True,
+    run_bom_in_background: bool = True,
 ) -> Dict[str, Any]:
     """Run a single question-agent turn and persist thread/history.
 
@@ -139,6 +140,7 @@ async def run_question_turn(
         session_id: Session identifier
         user_message: User's message
         enable_incremental_bom: Whether to trigger incremental BOM updates (default: True)
+        run_bom_in_background: Whether incremental BOM should run as a background task
 
     Returns:
         Dict with response, is_done, requirements_summary, history, and optional bom_items
@@ -197,36 +199,68 @@ async def run_question_turn(
             )
             recent_context = "\n".join(f"{msg['role']}: {msg['content']}" for msg in recent_history)
 
-            # Cancel any existing BOM task
-            if session_data.bom_task_handle and not session_data.bom_task_handle.done():
-                logger.info(f"Cancelling previous BOM task for session {session_id}")
-                session_data.bom_task_handle.cancel()
-                try:
-                    await session_data.bom_task_handle
-                except asyncio.CancelledError:
-                    pass
+            if run_bom_in_background:
+                # Cancel any existing BOM task
+                if session_data.bom_task_handle and not session_data.bom_task_handle.done():
+                    logger.info(f"Cancelling previous BOM task for session {session_id}")
+                    session_data.bom_task_handle.cancel()
+                    try:
+                        await session_data.bom_task_handle
+                    except asyncio.CancelledError:
+                        pass
 
-            # Set status to queued
-            session_data.bom_task_status = "queued"
-            session_store.set(session_id, session_data)
+                # Set status to queued
+                session_data.bom_task_status = "queued"
+                session_store.set(session_id, session_data)
 
-            # Spawn background BOM task (don't await)
-            task = asyncio.create_task(
-                _run_bom_task_background(client, session_store, session_id, recent_context)
-            )
-            
-            # Store task handle for cancellation
-            session_data.bom_task_handle = task
-            session_store.set(session_id, session_data)
+                # Spawn background BOM task (don't await)
+                task = asyncio.create_task(
+                    _run_bom_task_background(client, session_store, session_id, recent_context)
+                )
 
-            result["bom_items"] = session_data.bom_items or []
-            result["bom_updated"] = False  # Will be updated asynchronously
-            result["bom_task_status"] = "queued"
+                # Store task handle for cancellation
+                session_data.bom_task_handle = task
+                session_store.set(session_id, session_data)
+
+                result["bom_items"] = session_data.bom_items or []
+                result["bom_updated"] = False  # Will be updated asynchronously
+                result["bom_task_status"] = "queued"
+                result["bom_task_error"] = None
+            else:
+                existing_bom = list(session_data.bom_items or [])
+                session_data.bom_task_status = "processing"
+                session_data.bom_task_error = None
+                session_store.set(session_id, session_data)
+
+                bom_result = await run_incremental_bom_update(
+                    client, session_store, session_id, recent_context
+                )
+
+                session_data = session_store.get(session_id)
+                new_bom_items = bom_result.get("bom_items", existing_bom)
+                bom_updated = new_bom_items != existing_bom
+
+                if bom_result.get("error"):
+                    session_data.bom_task_status = "error"
+                    session_data.bom_task_error = bom_result.get("error")
+                else:
+                    session_data.bom_task_status = "complete"
+                    session_data.bom_task_error = None
+                    if bom_updated:
+                        session_data.bom_last_update = datetime.now()
+
+                session_store.set(session_id, session_data)
+
+                result["bom_items"] = new_bom_items
+                result["bom_updated"] = bom_updated
+                result["bom_task_status"] = session_data.bom_task_status
+                result["bom_task_error"] = session_data.bom_task_error
         else:
             # Return current BOM items without update
             result["bom_items"] = session_data.bom_items or []
             result["bom_updated"] = False
             result["bom_task_status"] = session_data.bom_task_status
+            result["bom_task_error"] = session_data.bom_task_error
 
         return result
 
