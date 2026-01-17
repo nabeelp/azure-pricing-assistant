@@ -56,7 +56,9 @@ class TestWebHandlersChatEndpoint:
         """Test chat endpoint signals workflow completion."""
         mock_interface = AsyncMock(spec=WebInterface)
         mock_interface.chat_turn.return_value = {
-            "response": '{"requirements": "Web app", "done": true}',
+            "response": """```json
+{"requirements": "Web app", "done": true}
+```""",
             "is_done": True,
             "bom_items": [{"serviceName": "Azure App Service", "sku": "P1v2", "quantity": 1, "region": "East US", "armRegionName": "eastus", "hours_per_month": 730}],
             "bom_updated": True,
