@@ -19,37 +19,37 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 
 ## 4. Functional Requirements
 
-### 4.1. Question Agent (Interactive Chat)
--   **Role**: Solution Architect / Requirement Gatherer.
+### 4.1. Architect Agent (Interactive Azure Solutions Architect)
+-   **Role**: Azure Solutions Architect / Requirement Gatherer with progressive service identification.
 -   **Input**: User natural language responses.
 -   **Capabilities**:
     -   Conduct multi-turn conversation (max 20 turns).
     -   Adapt questions based on workload type (Web, DB, AI/ML, etc.).
     -   Use Microsoft Learn MCP tool (`MCPStreamableHTTPTool` at `https://learn.microsoft.com/api/mcp`) to verify service capabilities and region availability.
+    -   **Use Azure Pricing MCP tool** with `azure_sku_discovery` to match requirements to Azure SKUs in real-time during conversation.
+    -   **Progressively build Bill of Materials** as information is gathered, maintaining a running list of identified services.
     -   **Look up recommended Azure architectures** for the workload type and base questions on architectural patterns (e.g., Azure Well-Architected Framework, reference architectures).
     -   **Ask about architecture components** such as private networking, Application Gateway, WAF, API Management, private endpoints, and other components typical of recommended architectures.
--   **Output**: A JSON object wrapped in a ```json code block: `{ "requirements": "<summary>", "done": true }` (no extra text outside the JSON).
+    -   **Store BOM items directly** in SessionData.bom_items during conversation (no separate incremental BOM agent).
+-   **Tools Available**:
+    -   `microsoft_docs_search`: Query Microsoft/Azure documentation
+    -   `azure_sku_discovery`: Match requirements to Azure SKUs with fuzzy matching
+    -   `azure_discover_skus`: List available SKUs for a service
+    -   `azure_cost_estimate`: Calculate early pricing estimates
+-   **Output Formats**:
+    -   **During conversation**: May include partial BOM JSON with identified services in `identified_services` format
+    -   **At completion**: JSON object wrapped in ```json code block: `{ "requirements": "<summary>", "done": true, "bom_items": [...] }`
 -   **Minimum Data Points**: Workload Type, Scale/Size, Specific Service(s), Deployment Region, Architecture Components (networking, gateways, security features).
 
-### 4.2. BOM Agent (Service Mapping)
--   **Role**: Infrastructure Designer.
--   **Input**: Conversation history and requirements summary (can be partial during incremental building).
--   **Operation Modes**:
-    -   **Incremental Mode**: Invoked during conversation when Question Agent detects sufficient information for a service component. Analyzes recent conversation context (last 6 exchanges) to identify new services or updates to existing ones.
-    -   **Final Mode**: Invoked at completion to review and finalize the complete BOM.
--   **Capabilities**:
-    -   Map workloads to appropriate Azure Services (e.g., Web App -> Azure App Service).
-    -   Select SKUs based on scale (Small/Basic, Medium/Standard, Large/Premium).
-    -   Use Microsoft Learn MCP tool to validate Service Names and SKU identifiers.
-    -   Use Azure Pricing MCP tool (provides `azure_sku_discovery`) for intelligent SKU matching.
-    -   **Update existing BOM items** when requirements change (e.g., tier upgrade from Basic to Premium).
-    -   **Merge new items** with existing BOM, matching on `serviceName` + `region` for updates.
--   **Trigger Conditions** (Incremental Mode):
-    -   Service or configuration keywords detected (e.g., "app service", "database", "sku", "tier")
-    -   Every 3 conversation turns to capture accumulated information
-    -   Conversation completion (`done: true`)
--   **Output**: Valid JSON array of BOM items (new or updated items in incremental mode, complete BOM in final mode).
-    -   Schema: `[{ "serviceName": "...", "sku": "...", "quantity": 1, "region": "...", "armRegionName": "...", "hours_per_month": 730 }]`
+### 4.2. BOM Agent (Service Mapping) - **DEPRECATED**
+-   **Status**: Deprecated - functionality moved to Architect Agent (4.1).
+-   **Legacy Role**: Infrastructure Designer with incremental and final operation modes.
+-   **Note**: Code remains for backward compatibility but is not invoked by orchestrator. The Architect Agent now handles service identification and BOM building directly during conversation using `azure_sku_discovery` and other Azure Pricing MCP tools.
+-   **Migration**: All BOM generation now happens in the Architect Agent, which:
+    -   Uses `azure_sku_discovery` for real-time SKU matching
+    -   Maintains progressive BOM in SessionData.bom_items
+    -   Stores items directly without separate incremental workflow
+-   **Schema**: BOM item schema remains unchanged: `[{ "serviceName": "...", "sku": "...", "quantity": 1, "region": "...", "armRegionName": "...", "hours_per_month": 730 }]`
 
 ### 4.3. Pricing Agent (Cost Estimation)
 -   **Role**: Cost Analyst.
@@ -136,39 +136,39 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **Observability**: OpenTelemetry with Aspire Dashboard integration.
 
 ### 5.2. Orchestration
-The application uses a hybrid orchestration pattern combining incremental and sequential execution:
+The application uses a simplified orchestration pattern with progressive BOM building:
 
-1.  **Discovery Stage with Incremental BOM Building**: Interactive chat loop managed by `ChatAgent` with thread-based conversation. During this stage:
-    -   Question Agent conducts adaptive Q&A
-    -   BOM Agent is invoked incrementally when trigger conditions are met
-    -   BOM items are accumulated in session state (`SessionData.bom_items`)
-    -   Stage terminates when the Question Agent emits `done: true` in its final JSON response
-2.  **Processing Stage**: `SequentialBuilder` pipeline executing agents in order: `BOM Agent (final review)` → `Pricing Agent` → `Proposal Agent`.
-    -   BOM Agent performs final validation and completion of BOM (may use incrementally built items)
-    -   Pricing Agent processes the complete BOM
+1.  **Discovery Stage with Progressive BOM Building**: Interactive chat loop managed by `ChatAgent` with thread-based conversation. During this stage:
+    -   Architect Agent conducts adaptive Q&A and progressive service identification
+    -   Architect Agent uses `azure_sku_discovery` to match requirements to SKUs in real-time
+    -   BOM items are built and stored directly by Architect Agent in session state (`SessionData.bom_items`)
+    -   Partial BOM items extracted from architect responses after each turn
+    -   Stage terminates when the Architect Agent emits `done: true` with final `bom_items` in its JSON response
+2.  **Processing Stage**: `SequentialBuilder` pipeline executing agents in order: `Pricing Agent` → `Proposal Agent`.
+    -   Pricing Agent processes the BOM items from SessionData
     -   Proposal Agent generates final output
+    -   Note: BOM Agent deprecated - BOM generation handled by Architect Agent during discovery
 
 ### 5.3. Data Flow
 
-**Discovery Stage (Incremental)**:
+**Discovery Stage (Progressive BOM Building)**:
 ```
-User Input → Question Agent → Trigger Check →
-  [If Triggered]:
-    Recent Context (6 exchanges) → BOM Agent (Incremental) → 
-    Parse & Validate → Merge with Session BOM → Store in SessionData.bom_items
-  → Return Response + BOM Items to UI
+User Input → Architect Agent (with azure_sku_discovery) → 
+  Extract partial BOM JSON from response → 
+  Merge with Session BOM → Store in SessionData.bom_items →
+  Return Response + Updated BOM Items to UI
 ```
 
 **Processing Stage (Sequential)**:
 ```
-Session BOM Items + Requirements → BOM Agent (Final) → Complete BOM JSON → 
-Pricing Agent → Pricing JSON → Proposal Agent → Proposal.md
+Session BOM Items + Requirements → Pricing Agent → Pricing JSON → 
+Proposal Agent → Proposal.md
 ```
 
 **Complete Flow**:
 ```
-[Discovery: User ↔ Question Agent + Incremental BOM Building] → 
-[Processing: BOM Finalization → Pricing → Proposal]
+[Discovery: User ↔ Architect Agent with Progressive BOM Building] → 
+[Processing: Pricing → Proposal]
 ```
 
 ### 5.4. Agent Implementation
@@ -176,8 +176,8 @@ All agents are implemented using `ChatAgent` from the Microsoft Agent Framework:
 
 | Agent | Tools | Purpose |
 |-------|-------|--------|
-| Question Agent | Microsoft Learn MCP (`MCPStreamableHTTPTool`) | Gathers requirements through adaptive Q&A |
-| BOM Agent | Microsoft Learn MCP + Azure Pricing MCP (`MCPStreamableHTTPTool`) | Maps requirements to Azure services/SKUs |
+| Architect Agent | Microsoft Learn MCP + Azure Pricing MCP (`MCPStreamableHTTPTool`) | Gathers requirements through adaptive Q&A and builds BOM progressively using `azure_sku_discovery` |
+| BOM Agent (Deprecated) | Microsoft Learn MCP + Azure Pricing MCP (`MCPStreamableHTTPTool`) | Legacy - functionality moved to Architect Agent |
 | Pricing Agent | Azure Pricing MCP (`MCPStreamableHTTPTool`) | Calculates costs using MCP pricing tools |
 | Proposal Agent | None | Generates professional Markdown proposal |
 
@@ -263,11 +263,13 @@ The application implements a layered observability approach:
 # 7. Enhancements Completed
 -   ✅ **Progressive BOM Disclosure**: Users can now see BOM items as they are identified during the conversation (Web UI displays in real-time side panel; CLI builds in background).
 -   ✅ **Incremental BOM Building**: BOM is constructed progressively during discovery stage with intelligent triggering and merge logic.
+-   ✅ **Architect Agent with Real-time SKU Discovery**: Refactored Question Agent into Architect Agent that uses `azure_sku_discovery` during conversation to identify services and SKUs in real-time. Builds BOM progressively without separate incremental BOM agent.
+-   ✅ **BOM Agent Deprecation**: Incremental BOM agent functionality moved to Architect Agent for simplified orchestration and better conversation context.
 -   ✅ **Observability Enhancements**: Comprehensive tracing and logging with session spans, stage spans, handler spans, and configurable log levels. Full OpenTelemetry integration with Aspire Dashboard support.
 -   ✅ **Progress Feedback (Partial)**: Real-time SSE-based progress updates during proposal generation via `/api/generate-proposal-stream` endpoint. Provides agent start, progress, and completion events.
 
 # 8. Planned Enhancements
--   **Tune Questioning Strategy**: Improve adaptive questioning based on workload type and experience level.
+-   **Tune Questioning Strategy**: Further refine Architect Agent's adaptive questioning based on workload type and experience level.
 -   **Progress Feedback (UI)**: Integrate streaming progress feedback into the web UI for visual progress indication.
 -   **Improve Performance**: Optimize agent response times and MCP tool calls.
 -   **Incremental Pricing**: Extend incremental approach to pricing calculation during discovery.
@@ -277,3 +279,4 @@ The application implements a layered observability approach:
 -   **AI Evaluation**: Set up evaluation framework to assess agent outputs for quality and accuracy.
 -   **Metrics**: Add OpenTelemetry metrics (counters for chat turns, proposal generations, errors).
 -   **Structured Logging**: Enhance logs with structured data using `extra={}` parameter for better querying.
+-   **BOM Agent Removal**: Remove deprecated BOM agent code in future cleanup PR.
