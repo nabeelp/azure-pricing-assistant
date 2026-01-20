@@ -60,24 +60,26 @@ class WorkflowHandler:
         context: InterfaceContext,
         session_id: str,
         message: str,
-        run_bom_in_background: bool = True,
+        run_bom_in_background: bool = False,  # Deprecated - architect handles BOM directly
     ) -> Dict[str, Any]:
         """
-        Process a single chat turn with the Question Agent.
+        Process a single chat turn with the Architect Agent.
 
+        The Architect Agent progressively builds BOM items during conversation.
         This is the shared implementation used by both CLI and Web interfaces.
 
         Args:
             context: InterfaceContext with initialized client and session store
             session_id: Unique identifier for the chat session
             message: User's input message
-            run_bom_in_background: Whether incremental BOM runs as a background task
+            run_bom_in_background: Deprecated - architect handles BOM directly
 
         Returns:
             Dictionary with:
                 - 'response': Agent's response text
                 - 'is_done': Whether requirements gathering is complete
                 - 'history': Full chat history
+                - 'bom_items': Identified services and SKUs
         """
         with _handler_span(
             "chat_turn",
