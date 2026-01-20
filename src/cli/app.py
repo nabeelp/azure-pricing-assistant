@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import re
 
 from agent_framework.observability import get_tracer
 from opentelemetry import trace
@@ -29,6 +30,24 @@ from src.shared.tracing import configure_tracing
 from src.shared.metrics import configure_metrics, increment_chat_turns, increment_proposals_generated, increment_errors
 
 
+def _sanitize_agent_response(response: str, is_done: bool) -> str:
+    """
+    Sanitize agent responses for CLI output.
+
+    Removes fenced JSON blocks and hides raw JSON completion payloads.
+    """
+    if not response:
+        return ""
+
+    sanitized = re.sub(r"```json\s*[\s\S]*?```", "", response, flags=re.IGNORECASE)
+    sanitized = sanitized.strip()
+
+    if is_done and sanitized.startswith("{") and sanitized.endswith("}"):
+        return ""
+
+    return sanitized
+
+
 async def run_cli_workflow() -> None:
     """Run the CLI workflow for Azure Pricing Assistant."""
     print_workflow_start()
@@ -44,7 +63,12 @@ async def run_cli_workflow() -> None:
         print_error(first_turn["error"])
         return
 
-    print_agent_response(first_turn["response"])
+    first_response = _sanitize_agent_response(
+        first_turn.get("response", ""),
+        bool(first_turn.get("is_done", False)),
+    )
+    if first_response:
+        print_agent_response(first_response)
 
     max_turns = 20
     requirements_summary = ""
@@ -67,7 +91,12 @@ async def run_cli_workflow() -> None:
                 increment_errors("chat_error", session_id)
                 continue
 
-            print_agent_response(turn_result["response"])
+            response_text = _sanitize_agent_response(
+                turn_result.get("response", ""),
+                bool(turn_result.get("is_done", False)),
+            )
+            if response_text:
+                print_agent_response(response_text)
         except Exception as e:
             print_error(str(e))
             increment_errors("chat_error", session_id)

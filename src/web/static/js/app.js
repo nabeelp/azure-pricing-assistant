@@ -59,7 +59,7 @@ function setHidden(element, hidden) {
     if (!element) {
         return;
     }
-    element.classList.toggle("is-hidden", hidden);
+    element.classList.toggle("hidden", hidden);
 }
 
 function startBOMPolling() {
@@ -111,22 +111,26 @@ function updateBOMStatusIndicator(status, error) {
         return;
     }
 
-    dom.bomStatusIndicator.className = "bom-status-indicator";
+    dom.bomStatusIndicator.className =
+        "inline-flex h-2.5 w-2.5 rounded-full bg-slate-300";
 
     switch (status) {
         case "processing":
         case "queued":
-            dom.bomStatusIndicator.classList.add("processing");
+            dom.bomStatusIndicator.classList.add(
+                "bg-amber-500",
+                "animate-pulse",
+            );
             dom.bomStatusText.textContent = "Analyzing services...";
             break;
         case "error":
-            dom.bomStatusIndicator.classList.add("error");
+            dom.bomStatusIndicator.classList.add("bg-rose-500");
             dom.bomStatusText.textContent = error
                 ? `Error: ${error}`
                 : "Error processing BOM";
             break;
         case "complete":
-            dom.bomStatusIndicator.classList.add("complete");
+            dom.bomStatusIndicator.classList.add("bg-emerald-500");
             dom.bomStatusText.textContent = "Services identified from conversation";
             break;
         case "idle":
@@ -195,7 +199,7 @@ function showErrorBanner(message) {
     }
 
     dom.errorBannerText.textContent = `❌ ${message}`;
-    dom.errorBanner.classList.add("active");
+    dom.errorBanner.classList.remove("hidden");
 
     state.errorTimeoutId = window.setTimeout(() => {
         hideErrorBanner();
@@ -207,7 +211,7 @@ function hideErrorBanner() {
         return;
     }
 
-    dom.errorBanner.classList.remove("active");
+    dom.errorBanner.classList.add("hidden");
 }
 
 function addErrorMessage(title, detail) {
@@ -216,21 +220,22 @@ function addErrorMessage(title, detail) {
     }
 
     const errorDiv = document.createElement("div");
-    errorDiv.className = "error-message";
+    errorDiv.className =
+        "mb-4 flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900 shadow-sm";
 
     const icon = document.createElement("span");
-    icon.className = "error-message-icon";
+    icon.className = "text-2xl";
     icon.textContent = "⚠️";
 
     const content = document.createElement("div");
-    content.className = "error-message-content";
+    content.className = "flex-1";
 
     const titleDiv = document.createElement("div");
-    titleDiv.className = "error-message-title";
+    titleDiv.className = "text-sm font-semibold";
     titleDiv.textContent = title;
 
     const detailDiv = document.createElement("div");
-    detailDiv.className = "error-message-detail";
+    detailDiv.className = "mt-1 text-xs text-rose-700";
     detailDiv.textContent = detail;
 
     content.appendChild(titleDiv);
@@ -238,7 +243,8 @@ function addErrorMessage(title, detail) {
 
     if (state.lastUserMessage) {
         const retryButton = document.createElement("button");
-        retryButton.className = "retry-button";
+        retryButton.className =
+            "mt-3 inline-flex items-center rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100";
         retryButton.type = "button";
         retryButton.textContent = "🔄 Retry";
         retryButton.addEventListener("click", retryLastMessage);
@@ -350,10 +356,11 @@ function displayRequirementsSummary(summary) {
     }
 
     const summaryDiv = document.createElement("div");
-    summaryDiv.className = "message assistant";
+    summaryDiv.className = "mb-4 flex justify-start";
 
     const summaryContent = document.createElement("div");
-    summaryContent.className = "message-content summary";
+    summaryContent.className =
+        "max-w-[70%] rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-sm border-l-4 border-l-emerald-500";
 
     const title = document.createElement("strong");
     title.textContent = "📋 Requirements Summary:";
@@ -373,7 +380,7 @@ function displayRequirementsSummary(summary) {
     dom.chatContainer.appendChild(summaryDiv);
 
     state.isDone = true;
-    dom.doneBanner.classList.add("active");
+    dom.doneBanner.classList.remove("hidden");
     setHidden(dom.sendBtn, true);
     setHidden(dom.generateBtn, false);
 
@@ -386,24 +393,40 @@ function resetProgressTracking() {
     dom.finalProposal = null;
 }
 
+function getProgressStepClasses(status) {
+    const baseClasses =
+        "flex items-center gap-3 rounded-xl border-2 bg-white p-3 transition";
+
+    switch (status) {
+        case "active":
+            return `${baseClasses} border-indigo-500 bg-indigo-50`;
+        case "complete":
+            return `${baseClasses} border-emerald-400 bg-emerald-50`;
+        case "error":
+            return `${baseClasses} border-rose-400 bg-rose-50`;
+        default:
+            return `${baseClasses} border-slate-200`;
+    }
+}
+
 function createProgressStep(id, iconText, titleText, agentName) {
     const step = document.createElement("div");
-    step.className = "progress-step";
+    step.className = getProgressStepClasses("idle");
     step.id = id;
 
     const icon = document.createElement("span");
-    icon.className = "progress-icon";
+    icon.className = "text-2xl";
     icon.textContent = iconText;
 
     const text = document.createElement("div");
-    text.className = "progress-text";
+    text.className = "flex-1";
 
     const title = document.createElement("div");
-    title.className = "progress-title";
+    title.className = "text-sm font-semibold text-slate-800";
     title.textContent = titleText;
 
     const status = document.createElement("div");
-    status.className = "progress-status";
+    status.className = "progress-status text-xs text-slate-500";
     status.textContent = "Waiting...";
 
     text.appendChild(title);
@@ -423,7 +446,7 @@ function createProposalSkeleton() {
     resetProgressTracking();
 
     const progressIndicator = document.createElement("div");
-    progressIndicator.className = "progress-indicator";
+    progressIndicator.className = "space-y-3 rounded-xl bg-slate-50 p-4";
     progressIndicator.id = "progressIndicator";
 
     progressIndicator.appendChild(
@@ -448,7 +471,13 @@ function createProposalSkeleton() {
 
     const finalProposal = document.createElement("div");
     finalProposal.id = "finalProposal";
-    finalProposal.classList.add("is-hidden");
+    finalProposal.classList.add(
+        "hidden",
+        "whitespace-pre-wrap",
+        "text-sm",
+        "leading-relaxed",
+        "text-slate-800",
+    );
 
     dom.proposalContent.replaceChildren(progressIndicator, finalProposal);
 
@@ -458,21 +487,22 @@ function createProposalSkeleton() {
 
 function createErrorPanel(title, detail, actions) {
     const wrapper = document.createElement("div");
-    wrapper.className = "error-message";
+    wrapper.className =
+        "flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900 shadow-sm";
 
     const icon = document.createElement("span");
-    icon.className = "error-message-icon";
+    icon.className = "text-2xl";
     icon.textContent = "⚠️";
 
     const content = document.createElement("div");
-    content.className = "error-message-content";
+    content.className = "flex-1";
 
     const titleDiv = document.createElement("div");
-    titleDiv.className = "error-message-title";
+    titleDiv.className = "text-sm font-semibold";
     titleDiv.textContent = title;
 
     const detailDiv = document.createElement("div");
-    detailDiv.className = "error-message-detail";
+    detailDiv.className = "mt-1 text-xs text-rose-700";
     detailDiv.textContent = detail;
 
     content.appendChild(titleDiv);
@@ -480,14 +510,14 @@ function createErrorPanel(title, detail, actions) {
 
     if (actions && actions.length > 0) {
         const actionsContainer = document.createElement("div");
-        actionsContainer.className = "button-group";
+        actionsContainer.className = "mt-3 flex flex-wrap gap-2";
 
         actions.forEach((action) => {
             const button = document.createElement("button");
             button.type = "button";
             button.className = action.secondary
-                ? "retry-button secondary"
-                : "retry-button";
+                ? "inline-flex items-center rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
+                : "inline-flex items-center rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700";
             button.textContent = action.label;
             button.addEventListener("click", action.onClick);
             actionsContainer.appendChild(button);
@@ -510,7 +540,7 @@ async function generateProposal() {
     dom.generateBtn.disabled = true;
     dom.generateBtn.textContent = "Generating...";
 
-    dom.proposalSection.classList.add("active");
+    dom.proposalSection.classList.remove("hidden");
     setHidden(dom.chatContainer, true);
     setHidden(dom.bomSection, true);
     createProposalSkeleton();
@@ -575,10 +605,10 @@ async function generateProposal() {
 
                 window.setTimeout(() => {
                     if (dom.progressIndicator) {
-                        dom.progressIndicator.classList.add("is-hidden");
+                        dom.progressIndicator.classList.add("hidden");
                     }
                     if (dom.finalProposal) {
-                        dom.finalProposal.classList.remove("is-hidden");
+                        dom.finalProposal.classList.remove("hidden");
                         dom.finalProposal.textContent =
                             proposalData.proposal || "No proposal generated";
                     }
@@ -654,7 +684,7 @@ function updateProgressStep(agentName, status, statusText) {
         return;
     }
 
-    step.className = `progress-step ${status}`;
+    step.className = getProgressStepClasses(status);
 
     const statusDiv = step.querySelector(".progress-status");
     if (!statusDiv) {
@@ -665,7 +695,8 @@ function updateProgressStep(agentName, status, statusText) {
 
     if (status === "active") {
         const spinner = document.createElement("span");
-        spinner.className = "spinner";
+        spinner.className =
+            "inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-500";
         statusDiv.appendChild(spinner);
         statusDiv.append(` ${statusText}`);
         return;
@@ -680,10 +711,19 @@ function addMessage(role, content) {
     }
 
     const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${role}`;
+    const wrapperClasses = "mb-4 flex";
+    messageDiv.className =
+        role === "user"
+            ? `${wrapperClasses} justify-end`
+            : `${wrapperClasses} justify-start`;
 
     const contentDiv = document.createElement("div");
-    contentDiv.className = "message-content";
+    const baseContentClasses =
+        "max-w-[70%] whitespace-pre-wrap break-words rounded-xl px-4 py-3 text-sm leading-relaxed shadow-sm border";
+    contentDiv.className =
+        role === "user"
+            ? `${baseContentClasses} bg-indigo-600 text-white border-indigo-600`
+            : `${baseContentClasses} bg-white text-slate-800 border-slate-200`;
     contentDiv.textContent = content;
 
     messageDiv.appendChild(contentDiv);
@@ -698,7 +738,7 @@ function updateBOM(bomItems, isNewUpdate) {
 
     if (!bomItems || bomItems.length === 0) {
         dom.bomContent.innerHTML =
-            '<div class="bom-empty">💬 BOM will appear here as you discuss requirements</div>';
+            '<div class="text-center text-slate-400 py-10">💬 BOM will appear here as you discuss requirements</div>';
         return;
     }
 
@@ -706,31 +746,39 @@ function updateBOM(bomItems, isNewUpdate) {
 
     bomItems.forEach((item) => {
         const itemDiv = document.createElement("div");
-        itemDiv.className = "bom-item";
+        itemDiv.className =
+            "rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition";
 
         if (isNewUpdate) {
-            itemDiv.classList.add("new");
-            window.setTimeout(() => itemDiv.classList.remove("new"), 1000);
+            itemDiv.classList.add("ring-2", "ring-emerald-400", "bg-emerald-50");
+            window.setTimeout(() => {
+                itemDiv.classList.remove(
+                    "ring-2",
+                    "ring-emerald-400",
+                    "bg-emerald-50",
+                );
+            }, 1000);
         }
 
         const title = document.createElement("div");
-        title.className = "bom-item-title";
+        title.className = "text-sm font-semibold text-slate-800";
         title.textContent = item.serviceName || "Unnamed service";
 
         const region = document.createElement("div");
-        region.className = "bom-item-detail";
+        region.className = "text-xs text-slate-500";
         region.textContent = `📍 ${item.region || "Unknown region"}`;
 
         const quantity = document.createElement("div");
-        quantity.className = "bom-item-detail";
+        quantity.className = "text-xs text-slate-500";
         quantity.textContent = `🔢 Quantity: ${item.quantity ?? "—"}`;
 
         const hours = document.createElement("div");
-        hours.className = "bom-item-detail";
+        hours.className = "text-xs text-slate-500";
         hours.textContent = `⏱️ ${item.hours_per_month ?? "—"} hrs/month`;
 
         const sku = document.createElement("span");
-        sku.className = "bom-item-sku";
+        sku.className =
+            "mt-2 inline-flex rounded bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white";
         sku.textContent = item.sku || "Unknown SKU";
 
         itemDiv.appendChild(title);
@@ -770,14 +818,14 @@ async function resetChat() {
         }
 
         if (dom.proposalSection) {
-            dom.proposalSection.classList.remove("active");
+            dom.proposalSection.classList.add("hidden");
         }
 
         setHidden(dom.chatContainer, false);
         setHidden(dom.bomSection, false);
 
         if (dom.doneBanner) {
-            dom.doneBanner.classList.remove("active");
+            dom.doneBanner.classList.add("hidden");
         }
 
         hideErrorBanner();
@@ -806,7 +854,7 @@ async function resetChat() {
 
 function backToChat() {
     if (dom.proposalSection) {
-        dom.proposalSection.classList.remove("active");
+        dom.proposalSection.classList.add("hidden");
     }
     setHidden(dom.chatContainer, false);
     setHidden(dom.bomSection, false);

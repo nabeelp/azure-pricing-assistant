@@ -314,8 +314,11 @@ LOGGING GUIDANCE:
 - Include quantity and region context in logs
 - Final log: "[INFO] Pricing complete: {count} items, ${total:.2f}/mo, {error_count} errors"
 
-OUTPUT FORMAT:
-Return ONLY a JSON object (no code block needed; agent framework will format).
+OUTPUT FORMAT (STRICT):
+- Return ONLY a single JSON object and nothing else.
+- Do NOT include requirements summaries, BOM echoes, markdown, or prose.
+- Do NOT include multiple JSON objects.
+- Do NOT include a code block.
 
 Your output MUST include:
 1. items array with all required fields
@@ -324,6 +327,11 @@ Your output MUST include:
 4. pricing_date (ISO 8601 format, e.g., "2026-01-07")
 5. errors array (empty if no failures, or list of error descriptions)
 6. savings_options array (optional, for cost optimization suggestions)
+
+STRICT FAILURE BEHAVIOR:
+- If any tool call fails, still return a valid JSON object.
+- Populate items using the BOM entries with unit_price/monthly_cost as 0.00 and add errors entries.
+- Never return partially formatted text or any content outside the single JSON object.
 
 OUTPUT SCHEMA (REQUIRED):
 {

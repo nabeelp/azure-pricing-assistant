@@ -3,11 +3,30 @@
 import asyncio
 import logging
 import os
+import re
 from typing import Any, Dict
 
 from src.web.interface import WebInterface
 from src.web.models import ChatResponse, ProposalResponse
 from src.shared.metrics import increment_chat_turns, increment_proposals_generated, increment_errors
+
+def _sanitize_chat_response(response: str, is_done: bool) -> str:
+    """
+    Sanitize agent responses for user display.
+
+    Removes fenced JSON blocks and hides raw JSON completion payloads.
+    """
+    if not response:
+        return ""
+
+    sanitized = re.sub(r"```json\s*[\s\S]*?```", "", response, flags=re.IGNORECASE)
+    sanitized = sanitized.strip()
+
+    if is_done and sanitized.startswith("{") and sanitized.endswith("}"):
+        return ""
+
+    return sanitized
+
 
 # Get logger (setup handled by application entry point)
 logger = logging.getLogger(__name__)
@@ -44,11 +63,10 @@ class WebHandlers:
             
             result = await self.interface.chat_turn(session_id, message)
 
-            # Filter out JSON blocks from the response display
-            response = result.get("response") or ""
-            if response.strip().startswith("{"):
-                # This is likely the JSON completion message - don't show it
-                response = ""
+            response = _sanitize_chat_response(
+                result.get("response") or "",
+                bool(result.get("is_done", False)),
+            )
 
             return {
                 "response": response,
