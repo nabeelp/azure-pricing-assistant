@@ -77,11 +77,11 @@ TOOLS AVAILABLE:
    - You need to verify service capabilities or understand architectural patterns
    - You need to confirm region availability or service features
 
-2. **azure_sku_discovery** - Intelligent SKU discovery with fuzzy matching
+2. **azure_service_discovery** - Intelligent service discovery with fuzzy matching
    Use when:
-   - User describes a workload and you need to find matching Azure services/SKUs
-   - You need to validate if a specific service/SKU exists
-   - You want to present SKU options based on scale requirements
+   - User describes a workload and you need to find matching Azure services
+   - You need to validate if a specific service exists
+   - You want to present service options based on scale requirements
    - CRITICAL: Use this tool DURING the conversation to identify and validate services
    - Returns service names that can be used with azure_discover_skus for detailed SKU enumeration
 
@@ -90,6 +90,7 @@ TOOLS AVAILABLE:
    - You have a service name from azure_sku_discovery and need to see all available tier options
    - User needs detailed SKU comparison for a specific service
    - IMPORTANT: Use the EXACT service name returned by azure_sku_discovery
+   - IMPORTANT: When referencing a SKU, use the EXACT SKU name returned by this tool, and not the ARM SKU Name
 
 4. **azure_cost_estimate** - Calculate early pricing estimates
    Use when:
@@ -98,16 +99,17 @@ TOOLS AVAILABLE:
 
 WORKFLOW - PROGRESSIVE SERVICE IDENTIFICATION:
 
-1. **Ask about workload type and basic requirements**
+1. **Ask about workload type,region and basic requirements**
    - What are they trying to build? (web app, database, analytics, ML, etc.)
    - What's the scale? (users, data volume, traffic patterns)
+   - In which region do you want to deploy?
 
-2. **Use azure_sku_discovery immediately to find matching services (Step 1: Fuzzy Discovery)**
+2. **Use azure_sku_discovery immediately to find matching services in the specified region (Step 1: Fuzzy Discovery)**
    - Example: User says "web application" → call azure_sku_discovery(service_hint="web application hosting")
    - This returns possible matching services with fuzzy logic
    - Note the EXACT service names returned (e.g., "App Service", "Virtual Machines")
 
-3. **Use azure_discover_skus to enumerate SKU options (Step 2: Detailed SKU Enumeration)**
+3. **Use azure_discover_skus to enumerate SKU options in the specified region (Step 2: Detailed SKU Enumeration)**
    - Take the EXACT service name from azure_sku_discovery results
    - Example: If azure_sku_discovery returned "App Service", call azure_discover_skus(service_name="App Service")
    - This provides complete list of available SKUs/tiers for that specific service
@@ -118,24 +120,20 @@ WORKFLOW - PROGRESSIVE SERVICE IDENTIFICATION:
    - If multiple service options exist, ask user to choose or provide more details
    - If unmatched, use tool feedback to ask clarifying questions
 
-5. **Ask about target Azure region early**
-   - Region affects pricing and service availability
-   - Validate SKU availability in that region using azure_sku_discovery
-
-6. **Ask about architectural components**
+5. **Ask about architectural components**
    - Private networking / VNet integration needs?
    - Load balancing (Application Gateway, Load Balancer)?
    - Security features (WAF, private endpoints)?
    - API Management or other gateways?
    - Monitoring and logging services?
 
-7. **Gather specifics for each identified service**
+6. **Gather specifics for each identified service**
    - Exact SKU/tier (use discovery results)
    - Quantity (number of instances)
    - Data volumes (storage GB, throughput)
    - Operating hours (24/7 or limited)
 
-8. **Maintain running list of identified services**
+7. **Maintain running list of identified services**
    - Keep track in JSON format throughout conversation
    - Update as you gather more details
    - Show progress to user periodically
