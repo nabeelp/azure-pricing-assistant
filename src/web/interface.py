@@ -45,6 +45,19 @@ class WebInterface(PricingInterface):
                 bom_count = len(result.get("bom_items", []))
                 logger.debug(f"Session {session_id}: BOM updated, {bom_count} items")
             
+            # Include pricing information in response
+            session_data = self.context.session_store.get(session_id)
+            pricing_info = {}
+            if session_data:
+                pricing_info = {
+                    "pricing_items": session_data.pricing_items or [],
+                    "pricing_total": session_data.pricing_total,
+                    "pricing_currency": session_data.pricing_currency,
+                    "pricing_date": session_data.pricing_date,
+                    "pricing_task_status": session_data.pricing_task_status,
+                    "pricing_task_error": session_data.pricing_task_error,
+                }
+            
             # Remove history from web responses (optional - only if needed for bandwidth)
             return {
                 "response": result.get("response", ""),
@@ -54,6 +67,7 @@ class WebInterface(PricingInterface):
                 "bom_updated": result.get("bom_updated", False),
                 "bom_task_status": result.get("bom_task_status"),
                 "bom_task_error": result.get("bom_task_error"),
+                **pricing_info,  # Include pricing info
                 "error": result.get("error"),
             }
 
@@ -125,6 +139,50 @@ class WebInterface(PricingInterface):
             "bom_task_status": session_data.bom_task_status,
             "bom_last_update": last_update_str,
             "bom_task_error": session_data.bom_task_error
+        }
+
+    async def get_pricing_items(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get current pricing items and task status for a session.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with:
+                - pricing_items: List of pricing items
+                - pricing_total: Cumulative total monthly cost
+                - pricing_currency: Currency code (e.g., "USD")
+                - pricing_date: ISO 8601 date of pricing data
+                - pricing_task_status: Current task status (idle, queued, processing, complete, error)
+                - pricing_last_update: ISO 8601 timestamp of last pricing modification (or None)
+                - pricing_task_error: Error message if status is error (or None)
+        """
+        session_data = self.context.session_store.get(session_id)
+        if not session_data:
+            return {
+                "pricing_items": [],
+                "pricing_total": 0.0,
+                "pricing_currency": "USD",
+                "pricing_date": None,
+                "pricing_task_status": "idle",
+                "pricing_last_update": None,
+                "pricing_task_error": None
+            }
+        
+        # Format pricing_last_update as ISO 8601 string if present
+        last_update_str = None
+        if session_data.pricing_last_update:
+            last_update_str = session_data.pricing_last_update.isoformat()
+        
+        return {
+            "pricing_items": session_data.pricing_items or [],
+            "pricing_total": session_data.pricing_total,
+            "pricing_currency": session_data.pricing_currency,
+            "pricing_date": session_data.pricing_date,
+            "pricing_task_status": session_data.pricing_task_status,
+            "pricing_last_update": last_update_str,
+            "pricing_task_error": session_data.pricing_task_error
         }
 
     def get_stored_proposal(self, session_id: str) -> Dict[str, Any]:

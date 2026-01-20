@@ -126,6 +126,102 @@ async def _run_bom_task_background(
             session_store.set(session_id, session_data)
 
 
+async def _run_pricing_task_background(
+    client: AzureAIAgentClient,
+    session_store: InMemorySessionStore,
+    session_id: str,
+) -> None:
+    """
+    Background task wrapper for calculating incremental pricing.
+    
+    Handles state transitions and error handling for async pricing updates.
+    Updates session state with task status and pricing results.
+    
+    Args:
+        client: Azure AI Agent client
+        session_store: Session store
+        session_id: Session identifier
+    """
+    from src.agents.pricing_agent import calculate_incremental_pricing
+    
+    session_data = session_store.get(session_id)
+    if not session_data:
+        logger.warning(f"No session data found for {session_id} in pricing background task")
+        return
+    
+    # Only price if we have BOM items
+    if not session_data.bom_items:
+        logger.info(f"No BOM items to price for session {session_id}")
+        session_data.pricing_task_status = "idle"
+        session_store.set(session_id, session_data)
+        return
+    
+    # Transition to processing state
+    session_data.pricing_task_status = "processing"
+    session_data.pricing_task_error = None
+    session_store.set(session_id, session_data)
+    
+    try:
+        # Run pricing calculation with 30s timeout
+        pricing_result = await asyncio.wait_for(
+            calculate_incremental_pricing(client, session_data.bom_items),
+            timeout=30.0
+        )
+        
+        # Update session with pricing results
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.pricing_items = pricing_result.get("pricing_items", [])
+            session_data.pricing_total = pricing_result.get("total_monthly", 0.0)
+            session_data.pricing_currency = pricing_result.get("currency", "USD")
+            session_data.pricing_date = pricing_result.get("pricing_date")
+            session_data.pricing_task_status = "complete"
+            session_data.pricing_last_update = datetime.now()
+            
+            # Log any errors from pricing
+            errors = pricing_result.get("errors", [])
+            if errors:
+                logger.warning(f"Pricing errors for session {session_id}: {errors}")
+                session_data.pricing_task_error = "; ".join(errors[:3])  # Show first 3 errors
+            
+            session_store.set(session_id, session_data)
+            logger.info(f"Pricing task complete for session {session_id}: ${session_data.pricing_total:.2f}")
+    
+    except asyncio.TimeoutError:
+        logger.error(f"Pricing task timeout for session {session_id}", exc_info=True)
+        increment_errors("pricing_timeout", session_id=session_id)
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.pricing_task_status = "error"
+            session_data.pricing_task_error = "Pricing calculation timed out after 30 seconds"
+            session_store.set(session_id, session_data)
+    
+    except asyncio.CancelledError:
+        logger.info(f"Pricing task cancelled for session {session_id}")
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.pricing_task_status = "idle"
+            session_store.set(session_id, session_data)
+        raise
+    
+    except Exception as e:
+        # Log full traceback for debugging
+        error_traceback = traceback.format_exc()
+        logger.error(
+            f"Pricing task error for session {session_id}: {e}\n{error_traceback}",
+            exc_info=True,
+            extra={"session_id": session_id, "error_type": type(e).__name__}
+        )
+        increment_errors("pricing_task_failure", session_id=session_id)
+        
+        session_data = session_store.get(session_id)
+        if session_data:
+            session_data.pricing_task_status = "error"
+            # Sanitize error message for UI (no traceback)
+            session_data.pricing_task_error = f"Pricing calculation failed: {str(e)}"
+            session_store.set(session_id, session_data)
+
+
 async def run_question_turn(
     client: AzureAIAgentClient,
     session_store: InMemorySessionStore,
@@ -183,11 +279,31 @@ async def run_question_turn(
 
         # Extract partial BOM items from architect response
         partial_bom = extract_partial_bom_from_response(response_text)
+        bom_updated = False
         if partial_bom:
             # Merge with existing BOM items
             existing_bom = session_data.bom_items or []
             session_data.bom_items = _merge_bom_items(existing_bom, partial_bom)
+            bom_updated = True
             logger.info(f"Architect identified {len(partial_bom)} new/updated BOM items, total: {len(session_data.bom_items)}")
+            
+            # Trigger pricing calculation in background when BOM is updated
+            if session_data.bom_items:
+                # Cancel any existing pricing task
+                if session_data.pricing_task_handle and not session_data.pricing_task_handle.done():
+                    session_data.pricing_task_handle.cancel()
+                
+                # Queue pricing task
+                session_data.pricing_task_status = "queued"
+                session_data.pricing_task_error = None
+                session_store.set(session_id, session_data)
+                
+                # Start pricing task in background
+                pricing_task = asyncio.create_task(
+                    _run_pricing_task_background(client, session_store, session_id)
+                )
+                session_data.pricing_task_handle = pricing_task
+                logger.info(f"Started background pricing task for session {session_id}")
         
         session_store.set(session_id, session_data)
 
@@ -199,7 +315,7 @@ async def run_question_turn(
             "requirements_summary": requirements_summary,
             "history": session_data.history,
             "bom_items": session_data.bom_items or [],
-            "bom_updated": len(partial_bom) > 0,
+            "bom_updated": bom_updated,
             "bom_task_status": "complete",  # Architect handles directly
             "bom_task_error": None,
         }
