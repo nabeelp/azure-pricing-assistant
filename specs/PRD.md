@@ -33,9 +33,14 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
     -   **Store BOM items directly** in SessionData.bom_items during conversation (no separate incremental BOM agent).
 -   **Tools Available**:
     -   `microsoft_docs_search`: Query Microsoft/Azure documentation
-    -   `azure_sku_discovery`: Match requirements to Azure SKUs with fuzzy matching
-    -   `azure_discover_skus`: List available SKUs for a service
+    -   `azure_sku_discovery`: Match requirements to Azure services and SKUs with fuzzy matching. Returns service names that can be used with `azure_discover_skus`.
+    -   `azure_discover_skus`: List available SKUs for a specific service using the exact service name returned by `azure_sku_discovery`
     -   `azure_cost_estimate`: Calculate early pricing estimates
+-   **SKU Discovery Workflow**:
+    1. **Initial Discovery**: Use `azure_sku_discovery` with fuzzy logic to find possible matching services and SKUs based on workload description
+    2. **Detailed Enumeration**: Use the exact service name returned from `azure_sku_discovery` with `azure_discover_skus` to list all available SKUs for that service
+    3. **Selection**: Present options to user and gather specific SKU preferences
+    4. **Validation**: Confirm SKU availability in target region using `azure_sku_discovery`
 -   **Output Formats**:
     -   **During conversation**: May include partial BOM JSON with identified services in `identified_services` format
     -   **At completion**: JSON object wrapped in ```json code block: `{ "requirements": "<summary>", "done": true, "bom_items": [...] }`
