@@ -207,6 +207,53 @@ def get_bom():
             return jsonify({'error': str(e), 'bom_items': []}), 500
 
 
+@app.route('/api/pricing', methods=['GET'])
+def get_pricing():
+    """Get current pricing items for the session with caching headers."""
+    session_id = session.get('session_id')
+    
+    # Return empty pricing if no session exists yet (before first message)
+    if not session_id:
+        return jsonify({
+            'pricing_items': [],
+            'pricing_total': 0.0,
+            'pricing_currency': 'USD',
+            'pricing_date': None,
+            'pricing_task_status': 'idle',
+            'pricing_last_update': None,
+            'pricing_task_error': None
+        })
+    
+    session_span = get_or_create_session_span(session_id)
+    with trace.use_span(session_span, end_on_exit=False):
+        try:
+            result = run_coroutine(handlers.handle_get_pricing(session_id))
+            
+            # Generate ETag from pricing_last_update timestamp
+            etag = None
+            if result.get('pricing_last_update'):
+                etag = f'"{hash(result["pricing_last_update"])}"'
+            
+            # Check If-None-Match header for ETag-based caching
+            if etag and request.headers.get('If-None-Match') == etag:
+                return '', 304  # Not Modified
+            
+            response = jsonify(result)
+            
+            # Add caching headers
+            if etag:
+                response.headers['ETag'] = etag
+            if result.get('pricing_last_update'):
+                response.headers['Last-Modified'] = result['pricing_last_update']
+            
+            # Add Cache-Control to allow conditional requests
+            response.headers['Cache-Control'] = 'no-cache'
+            
+            return response
+        except Exception as e:
+            return jsonify({'error': str(e), 'pricing_items': []}), 500
+
+
 @app.route('/api/proposal', methods=['GET'])
 def get_proposal():
     """Get stored proposal for the session."""

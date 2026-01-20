@@ -76,6 +76,12 @@ class WebHandlers:
                 "bom_updated": result.get("bom_updated", False),
                 "bom_task_status": result.get("bom_task_status"),
                 "bom_task_error": result.get("bom_task_error"),
+                "pricing_items": result.get("pricing_items", []),
+                "pricing_total": result.get("pricing_total", 0.0),
+                "pricing_currency": result.get("pricing_currency", "USD"),
+                "pricing_date": result.get("pricing_date"),
+                "pricing_task_status": result.get("pricing_task_status", "idle"),
+                "pricing_task_error": result.get("pricing_task_error"),
                 "error": result.get("error"),
             }
         except Exception as e:
@@ -200,6 +206,25 @@ class WebHandlers:
                 - bom_task_error: Error message if status is error
         """
         return await self.interface.get_bom_items(session_id)
+
+    async def handle_get_pricing(self, session_id: str) -> Dict[str, Any]:
+        """
+        Handle pricing retrieval endpoint.
+
+        Args:
+            session_id: Unique identifier for the chat session
+
+        Returns:
+            Dictionary with:
+                - pricing_items: List of pricing items
+                - pricing_total: Cumulative total monthly cost
+                - pricing_currency: Currency code
+                - pricing_date: ISO 8601 date of pricing data
+                - pricing_task_status: Current task status (idle, queued, processing, complete, error)
+                - pricing_last_update: ISO 8601 timestamp of last pricing modification
+                - pricing_task_error: Error message if status is error
+        """
+        return await self.interface.get_pricing_items(session_id)
 
     def handle_get_proposal(self, session_id: str) -> Dict[str, Any]:
         """

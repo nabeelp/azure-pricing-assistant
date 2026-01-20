@@ -81,8 +81,20 @@ class SessionData:
     bom_task_error: Optional[str] = None  # Error message from failed BOM updates
     bom_last_update: Optional[datetime] = None  # Last BOM modification timestamp
     bom_task_handle: Optional[asyncio.Task] = None  # Task reference for cancellation
+    
+    # Pricing task lifecycle tracking
+    pricing_items: List[Dict[str, Any]] = None  # Incremental pricing items calculated during conversation
+    pricing_total: float = 0.0  # Cumulative total monthly cost
+    pricing_currency: str = "USD"  # Currency for pricing
+    pricing_date: Optional[str] = None  # ISO 8601 date of last pricing update
+    pricing_task_status: str = "idle"  # Values: idle, queued, processing, complete, error
+    pricing_task_error: Optional[str] = None  # Error message from failed pricing updates
+    pricing_last_update: Optional[datetime] = None  # Last pricing modification timestamp
+    pricing_task_handle: Optional[asyncio.Task] = None  # Task reference for cancellation
 
     def __post_init__(self):
         """Initialize mutable default values."""
         if self.bom_items is None:
             self.bom_items = []
+        if self.pricing_items is None:
+            self.pricing_items = []

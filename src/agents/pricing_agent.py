@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime
 from typing import Any, Dict, List
 
 from agent_framework import ChatAgent, MCPStreamableHTTPTool
@@ -197,6 +198,79 @@ def parse_pricing_response(response: str) -> Dict[str, Any]:
     except ValueError as e:
         logger.error(f"Validation error: {e}")
         raise
+
+
+async def calculate_incremental_pricing(
+    client: AzureAIAgentClient,
+    bom_items: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Calculate pricing for BOM items incrementally without full agent workflow.
+    
+    Uses the pricing agent to price specific BOM items and return pricing results.
+    This is used for real-time pricing updates in the UI sidebar.
+    
+    Args:
+        client: Azure AI Agent client
+        bom_items: List of BOM items to price
+        
+    Returns:
+        Dict with pricing_items, total_monthly, currency, pricing_date, and errors
+    """
+    if not bom_items:
+        logger.info("No BOM items to price")
+        return {
+            "pricing_items": [],
+            "total_monthly": 0.0,
+            "currency": "USD",
+            "pricing_date": datetime.now().strftime("%Y-%m-%d"),
+            "errors": []
+        }
+    
+    # Create pricing agent
+    pricing_agent = create_pricing_agent(client)
+    
+    # Build prompt with BOM items
+    bom_json = json.dumps(bom_items, indent=2)
+    prompt = f"""Calculate pricing for the following BOM items:
+
+{bom_json}
+
+Return pricing in the required JSON format with items, total_monthly, currency, and pricing_date."""
+    
+    try:
+        # Get new thread and run pricing
+        thread = pricing_agent.get_new_thread()
+        response_text = ""
+        
+        async for message in pricing_agent.run_stream(user_message=prompt, thread=thread):
+            if hasattr(message, 'data') and hasattr(message.data, 'text'):
+                response_text += message.data.text
+        
+        logger.info(f"Incremental pricing response length: {len(response_text)}")
+        
+        # Parse and validate response
+        pricing_result = parse_pricing_response(response_text)
+        
+        # Return simplified format for incremental updates
+        return {
+            "pricing_items": pricing_result.get("items", []),
+            "total_monthly": pricing_result.get("total_monthly", 0.0),
+            "currency": pricing_result.get("currency", "USD"),
+            "pricing_date": pricing_result.get("pricing_date", datetime.now().strftime("%Y-%m-%d")),
+            "errors": pricing_result.get("errors", [])
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating incremental pricing: {e}", exc_info=True)
+        # Return error state with zero pricing
+        return {
+            "pricing_items": [],
+            "total_monthly": 0.0,
+            "currency": "USD",
+            "pricing_date": datetime.now().strftime("%Y-%m-%d"),
+            "errors": [f"Pricing calculation failed: {str(e)}"]
+        }
 
 
 def create_pricing_agent(client: AzureAIAgentClient) -> ChatAgent:
