@@ -15,10 +15,12 @@ from agent_framework.observability import get_tracer
 from agent_framework_azure_ai import AzureAIAgentClient
 
 from src.agents import (
+    create_architect_agent,
+    extract_partial_bom_from_response,
     create_bom_agent,
     create_pricing_agent,
     create_proposal_agent,
-    create_question_agent,
+    create_question_agent,  # Legacy - will be removed
 )
 from src.agents.pricing_agent import parse_pricing_response
 from src.shared.errors import WorkflowError
@@ -129,32 +131,34 @@ async def run_question_turn(
     session_store: InMemorySessionStore,
     session_id: str,
     user_message: str,
-    enable_incremental_bom: bool = True,
-    run_bom_in_background: bool = True,
+    enable_incremental_bom: bool = False,  # Deprecated - architect handles BOM directly
+    run_bom_in_background: bool = False,  # Deprecated
 ) -> Dict[str, Any]:
-    """Run a single question-agent turn and persist thread/history.
+    """Run a single architect-agent turn and persist thread/history.
+    
+    The architect agent progressively builds BOM items during conversation.
 
     Args:
         client: Azure AI Agent client
         session_store: Session store
         session_id: Session identifier
         user_message: User's message
-        enable_incremental_bom: Whether to trigger incremental BOM updates (default: True)
-        run_bom_in_background: Whether incremental BOM should run as a background task
+        enable_incremental_bom: Deprecated - architect handles BOM directly
+        run_bom_in_background: Deprecated - not used
 
     Returns:
-        Dict with response, is_done, requirements_summary, history, and optional bom_items
+        Dict with response, is_done, requirements_summary, history, and bom_items
     """
     with _stage_span(
-        "Asking questions",
+        "Gathering requirements",
         session_id=session_id,
         message_length=len(user_message or ""),
     ):
-        question_agent = create_question_agent(client)
+        architect_agent = create_architect_agent(client)
 
         session_data = session_store.get(session_id)
         if not session_data:
-            thread = question_agent.get_new_thread()
+            thread = architect_agent.get_new_thread()
             session_data = SessionData(thread=thread, history=[])
         else:
             thread = session_data.thread
@@ -167,7 +171,7 @@ async def run_question_turn(
             )
 
         response_text = ""
-        async for update in question_agent.run_stream(user_message, thread=thread):
+        async for update in architect_agent.run_stream(user_message, thread=thread):
             if update.text:
                 response_text += update.text
 
@@ -176,6 +180,15 @@ async def run_question_turn(
 
         # Increment turn counter after successful run
         session_data.turn_count += 1
+
+        # Extract partial BOM items from architect response
+        partial_bom = extract_partial_bom_from_response(response_text)
+        if partial_bom:
+            # Merge with existing BOM items
+            existing_bom = session_data.bom_items or []
+            session_data.bom_items = _merge_bom_items(existing_bom, partial_bom)
+            logger.info(f"Architect identified {len(partial_bom)} new/updated BOM items, total: {len(session_data.bom_items)}")
+        
         session_store.set(session_id, session_data)
 
         is_done, requirements_summary = parse_question_completion(response_text)
@@ -185,82 +198,11 @@ async def run_question_turn(
             "is_done": is_done,
             "requirements_summary": requirements_summary,
             "history": session_data.history,
+            "bom_items": session_data.bom_items or [],
+            "bom_updated": len(partial_bom) > 0,
+            "bom_task_status": "complete",  # Architect handles directly
+            "bom_task_error": None,
         }
-
-        # Trigger incremental BOM update if enabled and conditions are met
-        if enable_incremental_bom and should_trigger_bom_update(
-            response_text, session_data.turn_count, session_data.history
-        ):
-            logger.info(f"Triggering incremental BOM update for session {session_id}")
-
-            # Build recent context from last few exchanges
-            recent_history = (
-                session_data.history[-6:] if len(session_data.history) > 6 else session_data.history
-            )
-            recent_context = "\n".join(f"{msg['role']}: {msg['content']}" for msg in recent_history)
-
-            if run_bom_in_background:
-                # Cancel any existing BOM task
-                if session_data.bom_task_handle and not session_data.bom_task_handle.done():
-                    logger.info(f"Cancelling previous BOM task for session {session_id}")
-                    session_data.bom_task_handle.cancel()
-                    try:
-                        await session_data.bom_task_handle
-                    except asyncio.CancelledError:
-                        pass
-
-                # Set status to queued
-                session_data.bom_task_status = "queued"
-                session_store.set(session_id, session_data)
-
-                # Spawn background BOM task (don't await)
-                task = asyncio.create_task(
-                    _run_bom_task_background(client, session_store, session_id, recent_context)
-                )
-
-                # Store task handle for cancellation
-                session_data.bom_task_handle = task
-                session_store.set(session_id, session_data)
-
-                result["bom_items"] = session_data.bom_items or []
-                result["bom_updated"] = False  # Will be updated asynchronously
-                result["bom_task_status"] = "queued"
-                result["bom_task_error"] = None
-            else:
-                existing_bom = list(session_data.bom_items or [])
-                session_data.bom_task_status = "processing"
-                session_data.bom_task_error = None
-                session_store.set(session_id, session_data)
-
-                bom_result = await run_incremental_bom_update(
-                    client, session_store, session_id, recent_context
-                )
-
-                session_data = session_store.get(session_id)
-                new_bom_items = bom_result.get("bom_items", existing_bom)
-                bom_updated = new_bom_items != existing_bom
-
-                if bom_result.get("error"):
-                    session_data.bom_task_status = "error"
-                    session_data.bom_task_error = bom_result.get("error")
-                else:
-                    session_data.bom_task_status = "complete"
-                    session_data.bom_task_error = None
-                    if bom_updated:
-                        session_data.bom_last_update = datetime.now()
-
-                session_store.set(session_id, session_data)
-
-                result["bom_items"] = new_bom_items
-                result["bom_updated"] = bom_updated
-                result["bom_task_status"] = session_data.bom_task_status
-                result["bom_task_error"] = session_data.bom_task_error
-        else:
-            # Return current BOM items without update
-            result["bom_items"] = session_data.bom_items or []
-            result["bom_updated"] = False
-            result["bom_task_status"] = session_data.bom_task_status
-            result["bom_task_error"] = session_data.bom_task_error
 
         return result
 
