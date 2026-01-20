@@ -2,8 +2,11 @@ const state = {
     isDone: false,
     lastUserMessage: "",
     bomPollingInterval: null,
+    pricingPollingInterval: null,
     lastBomUpdate: null,
-    currentPollingRate: 3000,
+    lastPricingUpdate: null,
+    currentBomPollingRate: 3000,
+    currentPricingPollingRate: 3000,
     errorTimeoutId: null,
     eventSource: null,
 };
@@ -17,6 +20,11 @@ const dom = {
     bomStatusIndicator: null,
     bomStatusText: null,
     bomLastUpdated: null,
+    pricingSummary: null,
+    pricingTotal: null,
+    pricingCurrency: null,
+    pricingDate: null,
+    pricingStatusText: null,
     doneBanner: null,
     errorBanner: null,
     errorBannerText: null,
@@ -24,6 +32,7 @@ const dom = {
     userInput: null,
     sendBtn: null,
     generateBtn: null,
+    generateBtnSidebar: null,
     resetBtn: null,
     chatForm: null,
     backToChatBtn: null,
@@ -42,13 +51,19 @@ function cacheDom() {
     dom.bomStatusIndicator = document.getElementById("bomStatusIndicator");
     dom.bomStatusText = document.getElementById("bomStatusText");
     dom.bomLastUpdated = document.getElementById("bomLastUpdated");
+    dom.pricingSummary = document.getElementById("pricingSummary");
+    dom.pricingTotal = document.getElementById("pricingTotal");
+    dom.pricingCurrency = document.getElementById("pricingCurrency");
+    dom.pricingDate = document.getElementById("pricingDate");
+    dom.pricingStatusText = document.getElementById("pricingStatusText");
     dom.doneBanner = document.getElementById("doneBanner");
     dom.errorBanner = document.getElementById("errorBanner");
     dom.errorBannerText = document.getElementById("errorBannerText");
     dom.errorBannerClose = document.getElementById("errorBannerClose");
     dom.userInput = document.getElementById("userInput");
     dom.sendBtn = document.getElementById("sendBtn");
-    dom.generateBtn = document.getElementById("generateBtn");
+    dom.generateBtn = document.getElementById("generateBtn");  // Keep for backward compat
+    dom.generateBtnSidebar = document.getElementById("generateBtnSidebar");
     dom.resetBtn = document.getElementById("resetBtn");
     dom.chatForm = document.getElementById("chatForm");
     dom.backToChatBtn = document.getElementById("backToChatBtn");
@@ -176,13 +191,113 @@ function adjustPollingRate(status) {
             newRate = 3000;
     }
 
-    if (Math.abs(newRate - state.currentPollingRate) >= 500) {
-        state.currentPollingRate = newRate;
+    if (Math.abs(newRate - state.currentBomPollingRate) >= 500) {
+        state.currentBomPollingRate = newRate;
         if (state.bomPollingInterval) {
             clearInterval(state.bomPollingInterval);
             state.bomPollingInterval = window.setInterval(
                 pollBOMStatus,
-                state.currentPollingRate,
+                state.currentBomPollingRate,
+            );
+        }
+    }
+}
+
+function startPricingPolling() {
+    stopPricingPolling();
+    state.pricingPollingInterval = window.setInterval(
+        pollPricingStatus,
+        state.currentPricingPollingRate,
+    );
+    pollPricingStatus();
+}
+
+function stopPricingPolling() {
+    if (state.pricingPollingInterval) {
+        clearInterval(state.pricingPollingInterval);
+        state.pricingPollingInterval = null;
+    }
+}
+
+async function pollPricingStatus() {
+    try {
+        const response = await fetch("/api/pricing");
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+
+        updatePricingSummary(
+            data.pricing_total,
+            data.pricing_currency,
+            data.pricing_date,
+            data.pricing_task_status,
+            data.pricing_task_error
+        );
+
+        adjustPricingPollingRate(data.pricing_task_status);
+    } catch (error) {
+        console.error("Pricing polling error:", error);
+    }
+}
+
+function updatePricingSummary(total, currency, date, status, error) {
+    if (dom.pricingTotal) {
+        dom.pricingTotal.textContent = `$${total.toFixed(2)}`;
+    }
+
+    if (dom.pricingCurrency) {
+        dom.pricingCurrency.textContent = currency || "USD";
+    }
+
+    if (dom.pricingDate) {
+        if (date) {
+            dom.pricingDate.textContent = `as of ${date}`;
+        } else {
+            dom.pricingDate.textContent = "—";
+        }
+    }
+
+    if (dom.pricingStatusText) {
+        if (status === "processing" || status === "queued") {
+            dom.pricingStatusText.classList.remove("hidden");
+        } else {
+            dom.pricingStatusText.classList.add("hidden");
+        }
+
+        if (status === "error" && error) {
+            dom.pricingStatusText.classList.remove("hidden");
+            dom.pricingStatusText.innerHTML = `<span class="text-rose-600">⚠️ ${error}</span>`;
+        }
+    }
+}
+
+function adjustPricingPollingRate(status) {
+    let newRate;
+
+    switch (status) {
+        case "processing":
+        case "queued":
+            newRate = 1000;
+            break;
+        case "idle":
+        case "complete":
+        case "error":
+            newRate = 5000;
+            break;
+        default:
+            newRate = 3000;
+    }
+
+    if (Math.abs(newRate - state.currentPricingPollingRate) >= 500) {
+        state.currentPricingPollingRate = newRate;
+        if (state.pricingPollingInterval) {
+            clearInterval(state.pricingPollingInterval);
+            state.pricingPollingInterval = window.setInterval(
+                pollPricingStatus,
+                state.currentPricingPollingRate,
             );
         }
     }
@@ -315,11 +430,22 @@ async function sendMessage() {
         }
 
         if (data.bom_items && data.bom_items.length > 0) {
-            updateBOM(data.bom_items, data.bom_updated);
+            updateBOM(data.bom_items, data.pricing_items || [], data.bom_updated);
         }
 
         if (data.bom_last_update) {
             updateBOMLastUpdated(data.bom_last_update);
+        }
+
+        // Update pricing summary
+        if (data.pricing_total !== undefined) {
+            updatePricingSummary(
+                data.pricing_total,
+                data.pricing_currency,
+                data.pricing_date,
+                data.pricing_task_status,
+                data.pricing_task_error
+            );
         }
 
         if (data.is_done) {
@@ -382,7 +508,11 @@ function displayRequirementsSummary(summary) {
     state.isDone = true;
     dom.doneBanner.classList.remove("hidden");
     setHidden(dom.sendBtn, true);
-    setHidden(dom.generateBtn, false);
+    
+    // Show Generate Proposal button in sidebar instead of chat area
+    if (dom.generateBtnSidebar) {
+        dom.generateBtnSidebar.classList.remove("hidden");
+    }
 
     dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
 }
@@ -731,20 +861,29 @@ function addMessage(role, content) {
     dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
 }
 
-function updateBOM(bomItems, isNewUpdate) {
+function updateBOM(bomItems, pricingItems, isNewUpdate) {
     if (!dom.bomContent) {
         return;
     }
 
     if (!bomItems || bomItems.length === 0) {
         dom.bomContent.innerHTML =
-            '<div class="text-center text-slate-400 py-10">💬 BOM will appear here as you discuss requirements</div>';
+            '<div class="text-center text-slate-400 py-10">💬 Services and pricing will appear here as you discuss requirements</div>';
         return;
+    }
+
+    // Create a pricing lookup map by service+sku+region
+    const pricingMap = new Map();
+    if (pricingItems && pricingItems.length > 0) {
+        pricingItems.forEach(item => {
+            const key = `${item.serviceName}:${item.sku}:${item.armRegionName}`;
+            pricingMap.set(key, item);
+        });
     }
 
     dom.bomContent.replaceChildren();
 
-    bomItems.forEach((item) => {
+    bomItems.forEach((bomItem) => {
         const itemDiv = document.createElement("div");
         itemDiv.className =
             "rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition";
@@ -762,29 +901,66 @@ function updateBOM(bomItems, isNewUpdate) {
 
         const title = document.createElement("div");
         title.className = "text-sm font-semibold text-slate-800";
-        title.textContent = item.serviceName || "Unnamed service";
+        title.textContent = bomItem.serviceName || "Unnamed service";
 
         const region = document.createElement("div");
         region.className = "text-xs text-slate-500";
-        region.textContent = `📍 ${item.region || "Unknown region"}`;
+        region.textContent = `📍 ${bomItem.region || "Unknown region"}`;
 
         const quantity = document.createElement("div");
         quantity.className = "text-xs text-slate-500";
-        quantity.textContent = `🔢 Quantity: ${item.quantity ?? "—"}`;
+        quantity.textContent = `🔢 Quantity: ${bomItem.quantity ?? "—"}`;
 
         const hours = document.createElement("div");
         hours.className = "text-xs text-slate-500";
-        hours.textContent = `⏱️ ${item.hours_per_month ?? "—"} hrs/month`;
+        hours.textContent = `⏱️ ${bomItem.hours_per_month ?? "—"} hrs/month`;
 
         const sku = document.createElement("span");
         sku.className =
             "mt-2 inline-flex rounded bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white";
-        sku.textContent = item.sku || "Unknown SKU";
+        sku.textContent = bomItem.sku || "Unknown SKU";
 
         itemDiv.appendChild(title);
         itemDiv.appendChild(region);
         itemDiv.appendChild(quantity);
         itemDiv.appendChild(hours);
+
+        // Add pricing info if available
+        const key = `${bomItem.serviceName}:${bomItem.sku}:${bomItem.armRegionName}`;
+        const pricingItem = pricingMap.get(key);
+        
+        if (pricingItem) {
+            const pricingDiv = document.createElement("div");
+            pricingDiv.className = "mt-2 pt-2 border-t border-slate-200 space-y-1";
+
+            const unitPrice = document.createElement("div");
+            unitPrice.className = "text-xs text-slate-600";
+            unitPrice.textContent = `💵 Unit: $${pricingItem.unit_price.toFixed(4)}/hr`;
+
+            const monthlyCost = document.createElement("div");
+            monthlyCost.className = "text-sm font-semibold text-indigo-600";
+            const totalCost = pricingItem.monthly_cost * (bomItem.quantity || 1);
+            monthlyCost.textContent = `💰 $${totalCost.toFixed(2)}/mo`;
+
+            pricingDiv.appendChild(unitPrice);
+            pricingDiv.appendChild(monthlyCost);
+
+            if (pricingItem.notes) {
+                const notes = document.createElement("div");
+                notes.className = "text-xs text-amber-600 italic";
+                notes.textContent = pricingItem.notes;
+                pricingDiv.appendChild(notes);
+            }
+
+            itemDiv.appendChild(pricingDiv);
+        } else {
+            // Show pending pricing indicator
+            const pendingDiv = document.createElement("div");
+            pendingDiv.className = "mt-2 pt-2 border-t border-slate-200 text-xs text-slate-400 flex items-center gap-1";
+            pendingDiv.innerHTML = `<span class="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-400"></span><span>Calculating price...</span>`;
+            itemDiv.appendChild(pendingDiv);
+        }
+
         itemDiv.appendChild(sku);
         dom.bomContent.appendChild(itemDiv);
     });
@@ -796,6 +972,7 @@ async function resetChat() {
     }
 
     stopBOMPolling();
+    stopPricingPolling();
 
     try {
         const response = await fetch("/api/reset", {
@@ -830,17 +1007,24 @@ async function resetChat() {
 
         hideErrorBanner();
         setHidden(dom.sendBtn, false);
-        setHidden(dom.generateBtn, true);
+        
+        // Hide sidebar Generate Proposal button
+        if (dom.generateBtnSidebar) {
+            dom.generateBtnSidebar.classList.add("hidden");
+        }
 
         state.isDone = false;
         state.lastUserMessage = "";
         state.lastBomUpdate = null;
+        state.lastPricingUpdate = null;
 
-        updateBOM([], false);
+        updateBOM([], [], false);
         updateBOMLastUpdated(null);
         updateBOMStatusIndicator("idle", null);
+        updatePricingSummary(0.0, "USD", null, "idle", null);
 
         startBOMPolling();
+        startPricingPolling();
         addMessage("assistant", "Hello!\nI'm here to help you price an Azure solution. You can start by telling me the requirements, or give me a transcript from a customer meeting.");
     } catch (error) {
         console.error("Reset error:", error);
@@ -871,8 +1055,13 @@ function attachEventHandlers() {
         dom.chatForm.addEventListener("submit", handleFormSubmit);
     }
 
+    // Support both old generateBtn (if exists) and new sidebar button
     if (dom.generateBtn) {
         dom.generateBtn.addEventListener("click", generateProposal);
+    }
+    
+    if (dom.generateBtnSidebar) {
+        dom.generateBtnSidebar.addEventListener("click", generateProposal);
     }
 
     if (dom.resetBtn) {
@@ -897,12 +1086,14 @@ function initializeChat() {
     attachEventHandlers();
     addMessage("assistant", "Hello!\nI'm here to help you price an Azure solution. You can start by telling me the requirements, or give me a transcript from a customer meeting.");
     startBOMPolling();
+    startPricingPolling();
 }
 
 window.addEventListener("DOMContentLoaded", initializeChat);
 
 window.addEventListener("beforeunload", () => {
     stopBOMPolling();
+    stopPricingPolling();
     if (state.eventSource) {
         state.eventSource.close();
         state.eventSource = null;
