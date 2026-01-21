@@ -74,8 +74,6 @@ class WebHandlers:
                 "requirements_summary": result.get("requirements_summary"),
                 "bom_items": result.get("bom_items", []),
                 "bom_updated": result.get("bom_updated", False),
-                "bom_task_status": result.get("bom_task_status"),
-                "bom_task_error": result.get("bom_task_error"),
                 "pricing_items": result.get("pricing_items", []),
                 "pricing_total": result.get("pricing_total", 0.0),
                 "pricing_currency": result.get("pricing_currency", "USD"),
@@ -201,9 +199,6 @@ class WebHandlers:
         Returns:
             Dictionary with:
                 - bom_items: List of BOM items
-                - bom_task_status: Current task status (idle, queued, processing, complete, error)
-                - bom_last_update: ISO 8601 timestamp of last BOM modification
-                - bom_task_error: Error message if status is error
         """
         return await self.interface.get_bom_items(session_id)
 
