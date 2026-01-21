@@ -37,7 +37,7 @@ class WebInterface(PricingInterface):
         """
         async with self.context as ctx:
             result = await self.handler.handle_chat_turn(
-                ctx, session_id, message, run_bom_in_background=False
+                ctx, session_id, message
             )
             
             # Log BOM updates for debugging (data is returned via handle_chat in handlers.py)
