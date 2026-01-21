@@ -28,28 +28,11 @@ class TestArchitectAgentCreation:
         
         agent = create_architect_agent(mock_client)
         
-        # Verify agent was created with tools (tools passed to constructor)
-        # ChatAgent doesn't expose tools attribute, but we can verify creation succeeded
-        assert agent is not None
-        assert isinstance(agent, ChatAgent)
-
-    def test_agent_has_azure_pricing_tools(self):
-        """Should configure Azure Pricing MCP tools."""
-        mock_client = MagicMock(spec=AzureAIAgentClient)
-        
-        agent = create_architect_agent(mock_client)
-        
-        # Verify agent was created successfully
-        assert agent is not None
-        assert isinstance(agent, ChatAgent)
-        
-        # Verify the source code creates both Microsoft Learn and Azure Pricing tools
+        # Verify agent was created with Microsoft Learn tool
         import inspect
         source = inspect.getsource(create_architect_agent)
         assert "Microsoft Learn" in source
-        assert "Azure Pricing" in source
         assert "learn.microsoft.com" in source
-        assert "azure_sku_discovery" in source
 
 
 class TestPartialBOMExtraction:
@@ -170,10 +153,6 @@ class TestArchitectInstructions:
         
         # Check for tool descriptions
         assert "microsoft_docs_search" in source
-        assert "azure_sku_discovery" in source
-        assert "azure_discover_skus" in source
-        assert "azure_cost_estimate" in source
-
     def test_instructions_include_progressive_bom_building(self):
         """Should include instructions for progressive BOM building."""
         mock_client = MagicMock(spec=AzureAIAgentClient)
@@ -199,16 +178,16 @@ class TestArchitectInstructions:
         assert "Application Gateway" in source or "Load Balancer" in source
         assert "WAF" in source or "Web Application Firewall" in source
 
-    def test_instructions_require_real_time_sku_discovery(self):
-        """Should use azure_sku_discovery during conversation."""
+    def test_instructions_include_service_catalog(self):
+        """Should use static service catalog for recommendations."""
         mock_client = MagicMock(spec=AzureAIAgentClient)
         agent = create_architect_agent(mock_client)
         
         import inspect
         source = inspect.getsource(create_architect_agent)
         
-        assert "Use azure_sku_discovery" in source or "azure_sku_discovery" in source.lower()
-        assert "DURING the conversation" in source or "during conversation" in source.lower()
+        # Check for service catalog usage
+        assert "service catalog" in source.lower() or "list_all_services" in source
 
 
 class TestCompletionFormat:

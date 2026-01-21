@@ -127,20 +127,3 @@ class TestProposalPricingLinkContent:
         assert "pricing_url" in source or "[Service" in source
 
 
-class TestProposalPricingURLUtility:
-    """Test that pricing URL utility module exists and works."""
-
-    def test_pricing_url_utility_exists(self):
-        """Test that azure_pricing_urls utility module exists."""
-        from src.shared import azure_pricing_urls
-        
-        assert hasattr(azure_pricing_urls, "get_pricing_url_for_service")
-        assert hasattr(azure_pricing_urls, "format_service_with_pricing_link")
-
-    def test_pricing_url_utility_has_service_mappings(self):
-        """Test that utility has common service mappings."""
-        from src.shared.azure_pricing_urls import SERVICE_NAME_TO_PRICING_URL
-        
-        assert "Virtual Machines" in SERVICE_NAME_TO_PRICING_URL
-        assert "App Service" in SERVICE_NAME_TO_PRICING_URL
-        assert len(SERVICE_NAME_TO_PRICING_URL) >= 10  # Should have at least 10 services
