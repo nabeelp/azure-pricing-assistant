@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 
 DEFAULT_PRICING_MCP_URL = "http://localhost:8080/mcp"
+DEFAULT_PLAYWRIGHT_MCP_URL = "http://localhost:8080"
+DEFAULT_PLAYWRIGHT_MCP_TRANSPORT = "stdio"
 
 
 def load_environment() -> None:
@@ -24,6 +26,25 @@ def get_ai_endpoint() -> str:
 def get_pricing_mcp_url() -> str:
     """Return the pricing MCP endpoint with a sensible default."""
     return os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
+
+
+def get_playwright_mcp_transport() -> str:
+    """
+    Return the Playwright MCP transport type.
+
+    Returns:
+        'stdio' for local development (default) or 'http' for deployed environments.
+    """
+    return os.getenv("PLAYWRIGHT_MCP_TRANSPORT", DEFAULT_PLAYWRIGHT_MCP_TRANSPORT).lower()
+
+
+def get_playwright_mcp_url() -> str:
+    """
+    Return the Playwright MCP HTTP endpoint.
+
+    Only used when transport is 'http'. For 'stdio' transport, this is ignored.
+    """
+    return os.getenv("PLAYWRIGHT_MCP_URL", DEFAULT_PLAYWRIGHT_MCP_URL)
 
 
 def get_flask_secret() -> str:

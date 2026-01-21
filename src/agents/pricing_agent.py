@@ -1,4 +1,4 @@
-"""Pricing Agent - Uses Azure Pricing MCP via SSE for real-time pricing data."""
+"""Pricing Agent - Uses Playwright MCP to automate Azure Pricing Calculator."""
 
 import json
 import logging
@@ -7,11 +7,11 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List
 
-from agent_framework import ChatAgent, MCPStreamableHTTPTool
+from agent_framework import ChatAgent
 from agent_framework_azure_ai import AzureAIAgentClient
 
-# Default MCP URL if not set in environment
-DEFAULT_PRICING_MCP_URL = "http://localhost:8080/mcp"
+from src.shared.playwright_mcp import create_playwright_mcp_tool
+from src.shared.pricing_calculator import get_calculator_instructions_for_agent
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 def extract_json_from_response(response: str) -> str:
     """
     Extract JSON from agent response, handling markdown code blocks.
-    
+
     Args:
         response: Agent response text that may contain JSON in code blocks
-        
+
     Returns:
         Extracted JSON string
-        
+
     Raises:
         ValueError: If JSON cannot be extracted
     """
@@ -36,7 +36,7 @@ def extract_json_from_response(response: str) -> str:
         end = response.find("```", start)
         if end != -1:
             return response[start:end].strip()
-    
+
     # Try to extract from generic code block
     if "```" in response:
         start = response.find("```") + 3
@@ -47,29 +47,29 @@ def extract_json_from_response(response: str) -> str:
             if json_str.startswith("json\n"):
                 json_str = json_str[5:]
             return json_str
-    
+
     # Try to find JSON object directly
     if "{" in response and "}" in response:
         start = response.find("{")
         end = response.rfind("}") + 1
         return response[start:end].strip()
-    
+
     raise ValueError("Could not extract JSON from response")
 
 
 def validate_pricing_result(data: Any) -> None:
     """
     Validate pricing result structure and required fields.
-    
+
     Args:
         data: Parsed pricing result data
-        
+
     Raises:
         ValueError: If validation fails
     """
     if not isinstance(data, dict):
         raise ValueError("Pricing result must be a JSON object")
-    
+
     # Check required top-level fields
     if "items" not in data:
         raise ValueError("Pricing result missing required field: items")
@@ -79,31 +79,37 @@ def validate_pricing_result(data: Any) -> None:
         raise ValueError("Pricing result missing required field: currency")
     if "pricing_date" not in data:
         raise ValueError("Pricing result missing required field: pricing_date")
-    
+
     # Validate items array
     items = data["items"]
     if not isinstance(items, list):
         raise ValueError("items field must be an array")
-    
+
     if len(items) == 0:
         raise ValueError("items array cannot be empty")
-    
+
     required_item_fields = [
-        "serviceName", "sku", "region", "armRegionName", "quantity",
-        "hours_per_month", "unit_price", "monthly_cost"
+        "serviceName",
+        "sku",
+        "region",
+        "armRegionName",
+        "quantity",
+        "hours_per_month",
+        "unit_price",
+        "monthly_cost",
     ]
-    
+
     for idx, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValueError(f"Pricing item {idx} must be an object")
-        
+
         # Check required fields
         missing_fields = [field for field in required_item_fields if field not in item]
         if missing_fields:
             raise ValueError(
                 f"Pricing item {idx} missing required fields: {', '.join(missing_fields)}"
             )
-        
+
         # Validate field types
         if not isinstance(item["serviceName"], str):
             raise ValueError(f"Pricing item {idx}: serviceName must be a string")
@@ -121,32 +127,28 @@ def validate_pricing_result(data: Any) -> None:
             raise ValueError(f"Pricing item {idx}: unit_price must be a number")
         if not isinstance(item["monthly_cost"], (int, float)):
             raise ValueError(f"Pricing item {idx}: monthly_cost must be a number")
-        
+
         # Validate value ranges
         if item["quantity"] <= 0:
             raise ValueError(f"Pricing item {idx}: quantity must be positive")
         if item["hours_per_month"] <= 0 or item["hours_per_month"] > 744:
-            raise ValueError(
-                f"Pricing item {idx}: hours_per_month must be between 1 and 744"
-            )
-    
+            raise ValueError(f"Pricing item {idx}: hours_per_month must be between 1 and 744")
+
     # Validate top-level fields
     if not isinstance(data["total_monthly"], (int, float)):
         raise ValueError("total_monthly must be a number")
-    
+
     if not isinstance(data["currency"], str):
         raise ValueError("currency must be a string")
-    
+
     # Validate pricing_date format (ISO 8601: YYYY-MM-DD)
     pricing_date = data["pricing_date"]
     if not isinstance(pricing_date, str):
         raise ValueError("pricing_date must be a string")
-    
+
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", pricing_date):
-        raise ValueError(
-            f"pricing_date must be ISO 8601 format (YYYY-MM-DD), got: {pricing_date}"
-        )
-    
+        raise ValueError(f"pricing_date must be ISO 8601 format (YYYY-MM-DD), got: {pricing_date}")
+
     # Validate optional fields
     if "savings_options" in data and data["savings_options"] is not None:
         if not isinstance(data["savings_options"], list):
@@ -159,7 +161,7 @@ def validate_pricing_result(data: Any) -> None:
                     f"savings_options[{opt_idx}] missing required fields: "
                     "description, estimated_monthly_savings"
                 )
-    
+
     if "errors" in data and data["errors"] is not None:
         if not isinstance(data["errors"], list):
             raise ValueError("errors must be an array")
@@ -168,13 +170,13 @@ def validate_pricing_result(data: Any) -> None:
 def parse_pricing_response(response: str) -> Dict[str, Any]:
     """
     Parse and validate Pricing Agent response.
-    
+
     Args:
         response: Raw agent response text
-        
+
     Returns:
         Validated pricing result dict
-        
+
     Raises:
         ValueError: If parsing or validation fails
     """
@@ -182,16 +184,16 @@ def parse_pricing_response(response: str) -> Dict[str, Any]:
         # Extract JSON from response
         json_str = extract_json_from_response(response)
         logger.info(f"Extracted JSON: {json_str[:200]}...")
-        
+
         # Parse JSON
         data = json.loads(json_str)
-        
+
         # Validate structure and fields
         validate_pricing_result(data)
-        
+
         logger.info(f"Successfully parsed and validated pricing with {len(data['items'])} items")
         return data
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"JSON parsing error: {e}")
         raise ValueError(f"Invalid JSON format: {e}")
@@ -201,19 +203,18 @@ def parse_pricing_response(response: str) -> Dict[str, Any]:
 
 
 async def calculate_incremental_pricing(
-    client: AzureAIAgentClient,
-    bom_items: List[Dict[str, Any]]
+    client: AzureAIAgentClient, bom_items: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
     """
     Calculate pricing for BOM items incrementally without full agent workflow.
-    
+
     Uses the pricing agent to price specific BOM items and return pricing results.
     This is used for real-time pricing updates in the UI sidebar.
-    
+
     Args:
         client: Azure AI Agent client
         bom_items: List of BOM items to price
-        
+
     Returns:
         Dict with pricing_items, total_monthly, currency, pricing_date, and errors
     """
@@ -224,12 +225,12 @@ async def calculate_incremental_pricing(
             "total_monthly": 0.0,
             "currency": "USD",
             "pricing_date": datetime.now().strftime("%Y-%m-%d"),
-            "errors": []
+            "errors": [],
         }
-    
+
     # Create pricing agent
     pricing_agent = create_pricing_agent(client)
-    
+
     # Build prompt with BOM items
     bom_json = json.dumps(bom_items, indent=2)
     prompt = f"""Calculate pricing for the following BOM items:
@@ -237,30 +238,30 @@ async def calculate_incremental_pricing(
 {bom_json}
 
 Return pricing in the required JSON format with items, total_monthly, currency, and pricing_date."""
-    
+
     try:
         # Get new thread and run pricing
         thread = pricing_agent.get_new_thread()
         response_text = ""
-        
+
         async for message in pricing_agent.run_stream(user_message=prompt, thread=thread):
-            if hasattr(message, 'data') and hasattr(message.data, 'text'):
+            if hasattr(message, "data") and hasattr(message.data, "text"):
                 response_text += message.data.text
-        
+
         logger.info(f"Incremental pricing response length: {len(response_text)}")
-        
+
         # Parse and validate response
         pricing_result = parse_pricing_response(response_text)
-        
+
         # Return simplified format for incremental updates
         return {
             "pricing_items": pricing_result.get("items", []),
             "total_monthly": pricing_result.get("total_monthly", 0.0),
             "currency": pricing_result.get("currency", "USD"),
             "pricing_date": pricing_result.get("pricing_date", datetime.now().strftime("%Y-%m-%d")),
-            "errors": pricing_result.get("errors", [])
+            "errors": pricing_result.get("errors", []),
         }
-        
+
     except Exception as e:
         logger.error(f"Error calculating incremental pricing: {e}", exc_info=True)
         # Return error state with zero pricing
@@ -269,124 +270,60 @@ Return pricing in the required JSON format with items, total_monthly, currency, 
             "total_monthly": 0.0,
             "currency": "USD",
             "pricing_date": datetime.now().strftime("%Y-%m-%d"),
-            "errors": [f"Pricing calculation failed: {str(e)}"]
+            "errors": [f"Pricing calculation failed: {str(e)}"],
         }
 
 
 def create_pricing_agent(client: AzureAIAgentClient) -> ChatAgent:
-    """Create Pricing Agent with Azure Pricing MCP tool via SSE."""
-    instructions = """You are an Azure cost analyst specializing in pricing estimation using real-time Azure Retail Prices data via the Azure Pricing MCP server.
+    """Create Pricing Agent with Playwright MCP for Azure Pricing Calculator automation."""
 
-Your task is to calculate accurate costs for each item in the Bill of Materials (BOM) using the Azure Pricing tools.
+    # Get calculator automation instructions
+    calculator_instructions = get_calculator_instructions_for_agent()
 
-AVAILABLE TOOLS:
-You have access to the Azure Pricing MCP server with the following tools:
+    instructions = f"""You are an Azure cost analyst specializing in pricing estimation using the official Azure Pricing Calculator.
 
-1. azure_cost_estimate - Estimate costs based on usage patterns (PRIMARY TOOL)
-   Parameters: service_name, sku_name, region, hours_per_month (default 730), currency_code (default USD)
-   Returns: Detailed pricing with hourly_rate, daily_cost, monthly_cost, yearly_cost, and savings plan options
+Your task is to calculate accurate costs for each item in the Bill of Materials (BOM) by automating the Azure Pricing Calculator website.
 
-2. azure_price_search - Search Azure retail prices with filtering
-   Parameters: service_name, sku_name, region, currency_code, price_type
-   Returns: List of matching price records
+{calculator_instructions}
 
-3. azure_price_compare - Compare prices across regions or SKUs
-   Parameters: service_name (required), sku_name, regions (list), currency_code
-   Returns: Price comparison data across specified regions
+PROCESS FOR BOM PRICING:
 
-4. azure_region_recommend - Find cheapest regions for a service/SKU
-   Parameters: service_name (required), sku_name (required), currency_code
-   Returns: Ranked list of regions with prices and savings percentages
+1. **Parse BOM**: Extract all items from the BOM JSON array
+2. **Navigate**: Use browser_navigate to go to the calculator URL
+3. **Add Services**: For each BOM item:
+   - Use browser_snapshot to see page structure
+   - Search for the service using browser_type (search box)
+   - Add the service using browser_click
+   - Configure SKU, region, quantity using browser_select_option and browser_type
+   - For complex services like AKS, add node pools as well
+4. **Extract Pricing**: Use browser_snapshot to get the pricing summary
+5. **Parse Output**: Convert the calculator's output into the required JSON format
 
-5. azure_discover_skus - List available SKUs for a service
-   Parameters: service_name (required), region, currency_code
-   Returns: List of available SKUs with pricing
+CRITICAL: AKS CLUSTER HANDLING
 
-6. azure_sku_discovery - Intelligent SKU discovery with fuzzy matching
-   Parameters: service_hint (required)
-   Returns: Matched services and their SKUs
+This is the PRIMARY use case for this tool. When pricing Azure Kubernetes Service:
+- Add the AKS service first
+- Configure cluster region and SLA tier
+- **IMPORTANT**: Add node pools with their VM SKUs and node counts
+- The calculator will properly price nodes as cluster resources (not standalone VMs)
+- This is the accurate approach that the old Azure Pricing MCP couldn't handle
 
-7. get_customer_discount - Get customer discount information
-   Parameters: customer_id (optional)
-   Returns: Applicable discount percentage
+EXAMPLE WORKFLOW:
 
-PROCESS:
-1. Parse the BOM JSON from the previous agent's response
-2. For each item in the BOM:
-   - Use azure_cost_estimate with: service_name (from serviceName), sku_name (from sku), region (from armRegionName)
-   - Extract the monthly_cost from the on_demand_pricing section
-   - Multiply by quantity if quantity > 1
-3. Sum all monthly costs to get the total
-
-COMPLEX SERVICE PRICING HINTS:
-
-When calling azure_cost_estimate for these services, use these service_name values:
-
-1. **Virtual Machines**: service_name="Virtual Machines", sku_name=exact SKU (e.g., "Standard_D2s_v3")
-   - Disk pricing is separate; if BOM includes managed disks, price them as service_name="Storage"
-
-2. **App Service**: service_name="App Service", sku_name=exact SKU (e.g., "P1v3", "S1")
-   - Watch for Windows vs Linux pricing differences (Windows may include OS license)
-
-3. **SQL Database**: service_name="SQL Database", sku_name=exact SKU (e.g., "S1", "GP_Gen5_2")
-   - DTU-based SKUs: "S0", "S1", "P1", etc.
-   - vCore-based SKUs: "GP_Gen5_2", "BC_Gen5_4", etc.
-   - Storage may be billed separately for vCore-based
-
-4. **Storage**: service_name="Storage", sku_name=redundancy type (e.g., "Standard_LRS", "Premium_LRS")
-   - quantity represents GB of storage capacity
-   - Watch for tiered pricing (hot, cool, archive access tiers)
-
-5. **Azure Functions**: service_name="Azure Functions", sku_name=plan type (e.g., "Y1", "EP1")
-   - Consumption plan (Y1) has a generous free tier
-   - Execution time and memory consumption are billed separately
-
-6. **Azure Kubernetes Service**: service_name="Azure Kubernetes Service"
-   - Control plane is free; price only the worker node VMs
-   - Load Balancer: service_name="Load Balancer", sku_name="Standard"
-
-7. **Azure Cosmos DB**: service_name="Azure Cosmos DB", sku_name=throughput (e.g., "400RU", "1000RU")
-   - Provisioned throughput: RU/s (Request Units per second)
-   - Storage billed separately per GB
-
-8. **Azure Cache for Redis**: service_name="Azure Cache for Redis", sku_name=tier+size (e.g., "C1", "P1")
-
-IMPORTANT SERVICE NAME CONSISTENCY:
-- Always use the EXACT service name from the BOM (serviceName field)
-- Do NOT add or remove "Azure" prefix unless it matches the BOM
-- Examples: "App Service" not "Azure App Service", "Virtual Machines" not "VMs"
-- If the Pricing API requires different naming, handle that in your tool call parameters
-
-TOOL USAGE EXAMPLES:
-For a BOM item with serviceName="Virtual Machines", sku="Standard_D2s_v3", armRegionName="eastus":
-- Call azure_cost_estimate with service_name="Virtual Machines", sku_name="Standard_D2s_v3", region="eastus"
-- The response includes on_demand_pricing.monthly_cost
-
-ERROR HANDLING:
-- Wrap each tool call (especially azure_cost_estimate) in error handling
-- On success: Log `[INFO] Priced {serviceName} {sku} in {region}: ${monthly_cost:.2f}/mo`
-- On failure: Log `[ERROR] Failed to price {serviceName} {sku} in {region}: {error_reason}`
-- For failed items:
-  - Set unit_price to 0.00
-  - Set monthly_cost to 0.00
-  - Add to errors array: "{serviceName} {sku} in {region}: {specific error reason}"
-- Continue processing remaining items even if one fails (do not stop)
-- Fallback strategies:
-  - If exact SKU match fails, try azure_sku_discovery with service name
-  - If region lookup fails, note it in errors and use $0.00
-  - Always include the item in the BOM with $0.00 and error note
-
-CALCULATION VALIDATION:
-- After pricing all items, calculate total: sum(item.monthly_cost × item.quantity)
-- If calculated total differs from your computed total by more than $0.01:
-  - Log a warning with both values
-  - Correct the total_monthly in your output to match the sum calculation
-
-LOGGING GUIDANCE:
-- Log each service priced at INFO level with amount
-- Log all failures at ERROR level with specific reasons
-- Include quantity and region context in logs
-- Final log: "[INFO] Pricing complete: {count} items, ${total:.2f}/mo, {error_count} errors"
+```
+Step 1: browser_navigate(url="https://azure.microsoft.com/en-us/pricing/calculator/")
+Step 2: browser_snapshot() - understand page structure
+Step 3: For first BOM item (e.g., VM):
+  - browser_type(element="search box", text="Virtual Machines")
+  - browser_click(element="Virtual Machines tile")
+  - browser_click(element="Add to estimate")
+  - browser_select_option(element="Region", value="East US")
+  - browser_select_option(element="Instance", value="Standard_D2s_v3")
+  - browser_type(element="Quantity", text="2")
+Step 4: Repeat for other BOM items
+Step 5: browser_snapshot() - extract final pricing
+Step 6: Parse and format as JSON
+```
 
 OUTPUT FORMAT (STRICT):
 - Return ONLY a single JSON object and nothing else.
@@ -395,87 +332,78 @@ OUTPUT FORMAT (STRICT):
 - Do NOT include a code block.
 
 Your output MUST include:
-1. items array with all required fields
+1. items array with all required fields (see schema below)
 2. total_monthly (sum of monthly_cost × quantity) - MUST be calculated
 3. currency ("USD")
-4. pricing_date (ISO 8601 format, e.g., "2026-01-07")
+4. pricing_date (ISO 8601 format, e.g., "2026-01-21")
 5. errors array (empty if no failures, or list of error descriptions)
 6. savings_options array (optional, for cost optimization suggestions)
 
-STRICT FAILURE BEHAVIOR:
-- If any tool call fails, still return a valid JSON object.
-- Populate items using the BOM entries with unit_price/monthly_cost as 0.00 and add errors entries.
-- Never return partially formatted text or any content outside the single JSON object.
-
 OUTPUT SCHEMA (REQUIRED):
-{
+{{
   "items": [
-    {
+    {{
       "serviceName": "Virtual Machines",
       "sku": "Standard_D2s_v3",
       "region": "East US",
       "armRegionName": "eastus",
       "quantity": 2,
       "hours_per_month": 730,
-      "unit_price": 0.176,
-      "monthly_cost": 257.28,
-      "notes": "Optional notes about this item"
-    }
+      "unit_price": 0.096,
+      "monthly_cost": 140.16,
+      "notes": "Linux VM from Azure Calculator"
+    }}
   ],
-  "total_monthly": 514.56,
+  "total_monthly": 280.32,
   "currency": "USD",
-  "pricing_date": "2026-01-07",
-  "savings_options": [
-    {
-      "description": "Consider 1-year savings plan for 15% savings",
-      "estimated_monthly_savings": 77.18
-    }
-  ],
+  "pricing_date": "2026-01-21",
+  "savings_options": [],
   "errors": []
-}
+}}
 
 FIELD DEFINITIONS:
-- serviceName: Exact service name from BOM (e.g., "Virtual Machines")
-- sku: Exact SKU from BOM (e.g., "Standard_D2s_v3")
+- serviceName: Exact service name from BOM
+- sku: Exact SKU from BOM
 - region: Human-readable region from BOM (e.g., "East US")
 - armRegionName: ARM region code from BOM (e.g., "eastus")
 - quantity: Number of instances from BOM
 - hours_per_month: Monthly operating hours from BOM (typically 730)
-- unit_price: Hourly rate (from on_demand_pricing.hourly_rate)
-- monthly_cost: Monthly cost per unit (from on_demand_pricing.monthly_cost)
-- notes: Optional note if pricing was estimated, unavailable, or subject to assumptions
+- unit_price: Hourly rate extracted from calculator
+- monthly_cost: Monthly cost per unit extracted from calculator
+- notes: Optional note about pricing source or assumptions
 - total_monthly: Sum of (monthly_cost × quantity) for all items
 - pricing_date: Today's date in ISO 8601 format (YYYY-MM-DD)
-- errors: Array of error descriptions if any items failed to price (e.g., ["Virtual Machines: Pricing not available in region"])
-
-CALCULATION EXAMPLE:
-If BOM has:
-- serviceName: "Virtual Machines", sku: "Standard_D2s_v3", quantity: 2, armRegionName: "eastus"
-
-And azure_cost_estimate returns on_demand_pricing.monthly_cost = 257.28:
-- monthly_cost = 257.28
-- total = 257.28 × 2 = 514.56
+- errors: Array of error descriptions if any items failed
 
 ERROR HANDLING:
-- If a tool fails or returns no pricing, set unit_price to 0.00 and add to errors array
-- Always include the service in errors with a description of the failure
-- Continue processing remaining items even if one fails
-- Example: "Virtual Machines Standard_D2s_v3 in eastus: Pricing temporarily unavailable"
+- If calculator automation fails for an item:
+  - Log the specific error
+  - Set unit_price and monthly_cost to 0.00
+  - Add detailed error to errors array: "{{serviceName}} {{sku}} in {{region}}: {{error_reason}}"
+  - Continue with remaining items
+- If entire calculator fails to load:
+  - Return valid JSON with all items at $0.00
+  - Add error: "Calculator automation failed: {{reason}}"
+- Always return a valid JSON object, never partial text
+
+CALCULATION VALIDATION:
+- After extracting all prices, verify: total_monthly = sum(item.monthly_cost × item.quantity)
+- If mismatch, correct the total_monthly to match the sum
+- Log warning if correction needed
+
+LOGGING:
+- Log each successfully priced service: "[INFO] Priced {{serviceName}} {{sku}} in {{region}}: ${{monthly_cost}}/mo"
+- Log failures: "[ERROR] Failed to price {{serviceName}} {{sku}}: {{error}}"
+- Final summary: "[INFO] Pricing complete: {{count}} items, ${{total}}/mo, {{error_count}} errors"
 """
 
-    # Get MCP URL from environment variable or use default
-    mcp_url = os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
-
-    azure_pricing_mcp = MCPStreamableHTTPTool(
-        name="Azure Pricing",
-        description="Azure Pricing MCP server providing real-time pricing data, cost estimates, region recommendations, and SKU discovery for Azure services.",
-        url=mcp_url
-    )
+    # Create Playwright MCP tool
+    playwright_tool = create_playwright_mcp_tool(client=client)
 
     agent = ChatAgent(
         chat_client=client,
         instructions=instructions,
         name="pricing_agent",
-        tools=[azure_pricing_mcp],
+        tools=[playwright_tool],
     )
     return agent

@@ -2,15 +2,18 @@
 
 import json
 import logging
-import os
 import re
 from typing import Dict, List, Any, Optional
 
 from agent_framework import ChatAgent, MCPStreamableHTTPTool
 from agent_framework_azure_ai import AzureAIAgentClient
 
-# Default MCP URL if not set in environment
-DEFAULT_PRICING_MCP_URL = "http://localhost:8080/mcp"
+from src.shared.service_catalog import (
+    search_services,
+    get_service_skus,
+    get_service_guidance,
+    list_all_services,
+)
 
 # Get logger (setup handled by application entry point)
 logger = logging.getLogger(__name__)
@@ -19,10 +22,10 @@ logger = logging.getLogger(__name__)
 def extract_partial_bom_from_response(response: str) -> List[Dict[str, Any]]:
     """
     Extract partial BOM items from architect agent response.
-    
+
     Args:
         response: Agent response text that may contain partial BOM JSON
-        
+
     Returns:
         List of partial BOM items, empty list if none found
     """
@@ -30,13 +33,13 @@ def extract_partial_bom_from_response(response: str) -> List[Dict[str, Any]]:
         # Look for identified_services JSON block
         pattern = r'"identified_services"\s*:\s*\[(.*?)\]'
         match = re.search(pattern, response, re.DOTALL)
-        
+
         if match:
-            services_json = f'[{match.group(1)}]'
+            services_json = f"[{match.group(1)}]"
             items = json.loads(services_json)
             logger.info(f"Extracted {len(items)} partial BOM items from architect response")
             return items
-            
+
         # Look for standalone JSON array in code blocks
         if "```json" in response:
             start = response.find("```json") + 7
@@ -48,9 +51,9 @@ def extract_partial_bom_from_response(response: str) -> List[Dict[str, Any]]:
                 if isinstance(obj, dict) and "bom_items" in obj:
                     logger.info(f"Extracted {len(obj['bom_items'])} BOM items from completion")
                     return obj["bom_items"]
-                    
+
         return []
-        
+
     except (json.JSONDecodeError, AttributeError) as e:
         logger.debug(f"No partial BOM found in response: {e}")
         return []
@@ -59,13 +62,19 @@ def extract_partial_bom_from_response(response: str) -> List[Dict[str, Any]]:
 def create_architect_agent(client: AzureAIAgentClient) -> ChatAgent:
     """
     Create Architect Agent - Azure Solutions Architect for interactive service identification.
-    
+
     This agent acts as an Azure Solutions Architect, asking targeted questions to identify
-    Azure services and SKUs needed for the user's requirements. It uses azure_sku_discovery
-    during conversation to match requirements to Azure SKUs in real-time, building a list
-    of identified services progressively.
+    Azure services and SKUs needed for the user's requirements. It uses Microsoft Learn MCP
+    and a static service catalog to match requirements to Azure services and SKUs, building
+    a Bill of Materials (BOM) progressively during conversation.
     """
-    instructions = """You are an Azure Solutions Architect specializing in requirement gathering and service design.
+
+    # Get service catalog for reference
+    all_services = list_all_services()
+    services_list = ", ".join(all_services)
+
+    instructions = (
+        """You are an Azure Solutions Architect specializing in requirement gathering and service design.
 
 Your goal is to understand the user's requirements and progressively identify specific Azure services and SKUs that meet their needs, building a Bill of Materials (BOM) during the conversation.
 
@@ -76,49 +85,50 @@ TOOLS AVAILABLE:
    - User mentions a workload type and you need to suggest appropriate Azure services
    - You need to verify service capabilities or understand architectural patterns
    - You need to confirm region availability or service features
+   - You want to find recommended SKUs for a service
+   - You need to validate service and SKU combinations
 
-2. **azure_service_discovery** - Intelligent service discovery with fuzzy matching
-   Use when:
-   - User describes a workload and you need to find matching Azure services
-   - You need to validate if a specific service exists
-   - You want to present service options based on scale requirements
-   - CRITICAL: Use this tool DURING the conversation to identify and validate services
-   - Returns service names that can be used with azure_discover_skus for detailed SKU enumeration
+AVAILABLE AZURE SERVICES:
 
-3. **azure_discover_skus** - List available SKUs for a specific service
-   Use when:
-   - You have a service name from azure_sku_discovery and need to see all available tier options
-   - User needs detailed SKU comparison for a specific service
-   - IMPORTANT: Use the EXACT service name returned by azure_sku_discovery
-   - IMPORTANT: When referencing a SKU, use the EXACT SKU name returned by this tool, and not the ARM SKU Name
+You have access to a catalog of common Azure services and their SKUs:
+{}""".format(
+            services_list
+        )
+        + """
 
-4. **azure_cost_estimate** - Calculate early pricing estimates
-   Use when:
-   - You have identified services and want to provide rough cost estimates
-   - User asks about pricing during the conversation
+For each service, you can recommend common SKUs based on the user's requirements.
+
+COMMON SERVICES AND THEIR TYPICAL SKUS:
+
+**Virtual Machines**: Standard_B1s, Standard_D2s_v3, Standard_D4s_v3, Standard_E2s_v3
+**App Service**: F1 (Free), B1/B2/B3 (Basic), S1/S2/S3 (Standard), P1v3/P2v3/P3v3 (Premium)
+**Azure SQL Database**: Basic, S0/S1/S2/S3 (Standard), P1/P2/P4 (Premium), GP_Gen5_2/GP_Gen5_4 (General Purpose)
+**Azure Kubernetes Service**: Free or Standard (control plane SLA), node pools use VM SKUs
+**Storage**: Standard_LRS, Standard_GRS, Standard_ZRS, Premium_LRS
+**Azure Functions**: Y1 (Consumption), EP1/EP2/EP3 (Premium)
+**Azure Cache for Redis**: C0-C6 (Basic/Standard), P1-P5 (Premium)
 
 WORKFLOW - PROGRESSIVE SERVICE IDENTIFICATION:
 
-1. **Ask about workload type,region and basic requirements**
+1. **Ask about workload type, region and basic requirements**
    - What are they trying to build? (web app, database, analytics, ML, etc.)
    - What's the scale? (users, data volume, traffic patterns)
    - In which region do you want to deploy?
 
-2. **Use azure_sku_discovery immediately to find matching services in the specified region (Step 1: Fuzzy Discovery)**
-   - Example: User says "web application" → call azure_sku_discovery(service_hint="web application hosting")
-   - This returns possible matching services with fuzzy logic
-   - Note the EXACT service names returned (e.g., "App Service", "Virtual Machines")
+2. **Identify matching Azure services based on requirements**
+   - Example: User says "web application" → Suggest App Service, Virtual Machines, or Azure Container Apps
+   - Use your knowledge of the service catalog to present appropriate options
+   - Consider scale requirements when suggesting service tiers
 
-3. **Use azure_discover_skus to enumerate SKU options in the specified region (Step 2: Detailed SKU Enumeration)**
-   - Take the EXACT service name from azure_sku_discovery results
-   - Example: If azure_sku_discovery returned "App Service", call azure_discover_skus(service_name="App Service")
-   - This provides complete list of available SKUs/tiers for that specific service
-   - Present these detailed options to the user
+3. **Recommend appropriate SKUs based on requirements**
+   - For small scale: Basic or Standard tiers
+   - For medium scale: Standard or Premium tiers
+   - For large scale or production: Premium tiers with high availability
+   - Use microsoft_docs_search to verify SKU capabilities if needed
 
-4. **Ask clarifying questions based on discovery results**
-   - Use the tool's responses to inform your next questions
+4. **Ask clarifying questions to refine service selection**
    - If multiple service options exist, ask user to choose or provide more details
-   - If unmatched, use tool feedback to ask clarifying questions
+   - Gather specifics: exact tier preference, high availability needs, etc.
 
 5. **Ask about architectural components**
    - Private networking / VNet integration needs?
@@ -166,20 +176,22 @@ As you identify services during the conversation, maintain them in this format:
 
 IMPORTANT GUIDELINES:
 
-1. **Use azure_sku_discovery FREQUENTLY** - Don't wait until the end. Use it as you gather information.
+1. **Use your service knowledge actively** - Draw from the service catalog to make informed recommendations.
 
-2. **Be conversational** - Even while using tools, maintain natural flow. 
-   Example: "Let me check what Azure services would work well for your web application... [uses tool] Great! I found several options..."
+2. **Be conversational** - Maintain natural flow while gathering requirements.
+   Example: "For a web application with 5000 daily users, I'd recommend Azure App Service with the P1v3 Premium tier for production reliability."
 
-3. **Present options clearly** - When tools return multiple matches, present them with numbered choices.
+3. **Present options clearly** - When multiple services match, present them with numbered choices and explain differences.
 
 4. **Update identified_services progressively** - Don't wait until completion. Share partial lists as you go.
 
 5. **Ask about architecture** - Don't skip networking, gateways, and security components if they're relevant.
 
-6. **Validate in real-time** - If user mentions a specific service/SKU, use azure_sku_discovery to validate immediately.
+6. **Use microsoft_docs_search for validation** - If uncertain about a service capability or SKU, query the documentation.
 
 7. **Ask ONE question at a time** - Keep conversation focused and easy to follow.
+
+8. **For complex services like AKS** - Remember that node pools use VM SKUs. Ask about node configuration separately.
 
 COMPLETION CRITERIA:
 
@@ -224,63 +236,49 @@ You: "Great! Let me help you identify the right Azure services. First, what scal
 
 User: "About 5000 daily users"
 
-You: "Perfect. Let me check what Azure web hosting options would work well for that scale... [uses azure_sku_discovery with fuzzy matching] 
+You: "Perfect. For a web application with 5000 daily users, I'd recommend Azure App Service. It's a fully managed platform that handles the infrastructure for you.
 
-I found several good options:
-1. Azure App Service - Standard or Premium tiers
-2. Azure Container Apps - For containerized apps
-3. Virtual Machines - For custom configurations
+For this scale, I'd suggest:
+1. **P1v3 (Premium v3)** - Best for production with auto-scaling, 2 instances for high availability
+2. **S1 (Standard)** - Good for medium workloads, lower cost
+3. **B3 (Basic)** - Budget option for development/testing
 
-Which approach interests you most, or is there a preference?"
+For production with 5000 daily users, the P1v3 Premium tier would be most appropriate. Does this sound good, or would you like to explore other options?"
 
-User: "App Service sounds good"
+User: "P1v3 sounds good"
 
-You: "Excellent choice! Let me get the detailed SKU options for App Service... [uses azure_discover_skus with exact service name "App Service" returned from previous azure_sku_discovery call]
-
-For 5000 daily users, I'd recommend:
-- P1v3 (Premium): Best for production, auto-scaling
-- S1 (Standard): Good for medium workloads
-- B3 (Basic): Budget option for lower traffic
-
-For production reliability with 5000 daily users, I'd recommend the P1v3 Premium tier. Which Azure region are you targeting?"
+You: "Excellent choice! Which Azure region would you like to deploy in?"
 
 User: "East US"
 
-You: "Perfect. I've identified App Service P1v3 in East US as a good fit. 
+You: "Perfect. I've identified App Service P1v3 in East US with 2 instances for high availability.
 
 Current identified services:
-- App Service P1v3, East US, 2 instances for high availability
+- App Service P1v3, East US, 2 instances
 
-Now, do you need any additional components like:
-- Application Gateway for load balancing?
+Now, for a complete solution, do you need any additional components like:
 - Azure SQL Database for data storage?
-- Azure Cache for performance?"
+- Azure Cache for Redis for performance?
+- Application Gateway for load balancing and WAF protection?"
 
 [Continue until all requirements gathered, then output final JSON]
 
-Remember: Use your tools actively during the conversation, not just at the end. Build the BOM progressively!"""
+Remember: Build the BOM progressively and use microsoft_docs_search when you need to verify specific capabilities!"""
+    )
 
     # Microsoft Learn MCP tool
     microsoft_docs_search = MCPStreamableHTTPTool(
         name="Microsoft Learn",
-        description="AI assistant with real-time access to official Microsoft documentation.",
+        description="AI assistant with real-time access to official Microsoft documentation. Use this to verify service capabilities, find recommended architectures, check region availability, and validate SKU options.",
         url="https://learn.microsoft.com/api/mcp",
         chat_client=client,
     )
 
-    # Azure Pricing MCP tools
-    mcp_url = os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
-    azure_pricing_mcp = MCPStreamableHTTPTool(
-        name="Azure Pricing",
-        description="Azure Pricing MCP server providing real-time pricing data, cost estimates, region recommendations, and SKU discovery for Azure services.",
-        url=mcp_url,
-    )
-
     agent = ChatAgent(
         chat_client=client,
-        tools=[microsoft_docs_search, azure_pricing_mcp],
+        tools=[microsoft_docs_search],
         instructions=instructions,
         name="architect_agent",
     )
-    
+
     return agent

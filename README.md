@@ -77,9 +77,9 @@ The solution uses a two-stage orchestration pattern:
 
 | Agent | Tools | Purpose |
 |-------|-------|--------|
-| **Question Agent** | Microsoft Learn MCP | Gathers requirements through adaptive Q&A (max 20 turns) |
-| **BOM Agent** | Microsoft Learn MCP + Azure Pricing MCP | Maps requirements to Azure services and SKUs (now runs incrementally during conversation) |
-| **Pricing Agent** | Azure Pricing MCP | Calculates real-time costs for each BOM item |
+| **Architect Agent** | Microsoft Learn MCP | Gathers requirements and progressively builds BOM with service recommendations |
+| **BOM Agent** (Deprecated) | Microsoft Learn MCP | Legacy agent - functionality moved to Architect Agent |
+| **Pricing Agent** | Playwright MCP | Automates Azure Pricing Calculator for accurate cost estimates |
 | **Proposal Agent** | None | Generates professional Markdown proposal |
 
 ## Optional Dependencies
@@ -108,7 +108,8 @@ pip install -e .[all]     # Everything
 - Python 3.10 or higher
 - Azure CLI installed and authenticated (`az login`)
 - Azure AI Foundry project endpoint
-- Azure Pricing MCP Server running locally (HTTP endpoint, see [Azure Pricing MCP](https://github.com/nabeelp/AzurePricingMCP/tree/streamable-http))
+- Node.js 18+ (for Playwright MCP)
+- Playwright MCP installed globally: `npm install -g @playwright/mcp`
 
 ### For Azure Deployment
 - [Azure Developer CLI (azd)](https://aka.ms/install-azd) installed
@@ -121,7 +122,8 @@ pip install -e .[all]     # Everything
 | Name | Required | Default | Notes |
 |------|----------|---------|-------|
 | AZURE_AI_PROJECT_ENDPOINT | Yes | — | Azure AI Foundry project endpoint used by AzureAIAgentClient |
-| AZURE_PRICING_MCP_URL | No | http://localhost:8080/mcp | Endpoint for Azure Pricing MCP (used by BOM and Pricing agents) |
+| PLAYWRIGHT_MCP_TRANSPORT | No | stdio | Transport type: 'stdio' for local dev, 'http' for deployment |
+| PLAYWRIGHT_MCP_URL | No | http://localhost:8080 | HTTP endpoint for Playwright MCP (only used when transport=http) |
 | FLASK_SECRET_KEY | Yes for web | — | Secret key for Flask sessions |
 | PORT | No | 8000 | Port for local web server |
 
@@ -163,7 +165,8 @@ pip install -e .[all]     # Everything
    
    Edit `.env` and set:
    - `AZURE_AI_PROJECT_ENDPOINT`: Azure AI Foundry project endpoint (required)
-   - `AZURE_PRICING_MCP_URL`: Azure Pricing MCP endpoint (default: http://localhost:8080/mcp)
+   - `PLAYWRIGHT_MCP_TRANSPORT`: Transport type - use 'stdio' for local dev (default)
+   - `PLAYWRIGHT_MCP_URL`: Only needed if using 'http' transport (deployment)
    - `FLASK_SECRET_KEY`: Secret key for Flask sessions (required for web interface)
    - `PORT`: Optional port override for the local web server (default: 8000)
 
@@ -172,9 +175,13 @@ pip install -e .[all]     # Everything
    az login
    ```
 
-6. **Start Azure Pricing MCP Server**
+6. **Install Playwright MCP** (for browser automation of Azure Pricing Calculator)
+   ```bash
+   npm install -g @playwright/mcp
+   ```
    
-   Follow the instructions in the [Azure Pricing MCP repository](https://github.com/nabeelp/AzurePricingMCP/tree/streamable-http) to start the MCP server locally. The agents expect the endpoint at `http://localhost:8080/mcp` (configure via `AZURE_PRICING_MCP_URL`).
+   For local development, the application uses STDIO transport (no separate server needed).
+   For deployed environments, see the deployment section for HTTP transport setup.
 
 7. **Optional - Start Aspire Dashboard for Observability**
    ```bash

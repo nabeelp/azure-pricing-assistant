@@ -26,21 +26,19 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
     -   Conduct multi-turn conversation (max 20 turns).
     -   Adapt questions based on workload type (Web, DB, AI/ML, etc.).
     -   Use Microsoft Learn MCP tool (`MCPStreamableHTTPTool` at `https://learn.microsoft.com/api/mcp`) to verify service capabilities and region availability.
-    -   **Use Azure Pricing MCP tool** with `azure_sku_discovery` to match requirements to Azure SKUs in real-time during conversation.
+    -   **Use static service catalog** with common Azure services and SKUs for real-time service recommendations.
     -   **Progressively build Bill of Materials** as information is gathered, maintaining a running list of identified services.
     -   **Look up recommended Azure architectures** for the workload type and base questions on architectural patterns (e.g., Azure Well-Architected Framework, reference architectures).
     -   **Ask about architecture components** such as private networking, Application Gateway, WAF, API Management, private endpoints, and other components typical of recommended architectures.
     -   **Store BOM items directly** in SessionData.bom_items during conversation (no separate incremental BOM agent).
 -   **Tools Available**:
     -   `microsoft_docs_search`: Query Microsoft/Azure documentation
-    -   `azure_sku_discovery`: Match requirements to Azure services and SKUs with fuzzy matching. Returns service names that can be used with `azure_discover_skus`.
-    -   `azure_discover_skus`: List available SKUs for a specific service using the exact service name returned by `azure_sku_discovery`
-    -   `azure_cost_estimate`: Calculate early pricing estimates
--   **SKU Discovery Workflow**:
-    1. **Initial Discovery**: Use `azure_sku_discovery` with fuzzy logic to find possible matching services and SKUs based on workload description
-    2. **Detailed Enumeration**: Use the exact service name returned from `azure_sku_discovery` with `azure_discover_skus` to list all available SKUs for that service
-    3. **Selection**: Present options to user and gather specific SKU preferences
-    4. **Validation**: Confirm SKU availability in target region using `azure_sku_discovery`
+    -   Static service catalog: Built-in catalog of 12+ common Azure services with typical SKUs
+-   **Service Discovery Approach**:
+    1. **Service Identification**: Use static catalog to match workload requirements to Azure services
+    2. **SKU Recommendation**: Recommend appropriate SKUs based on scale requirements (Basic/Standard/Premium)
+    3. **Validation**: Use Microsoft Learn MCP to validate service capabilities and region availability
+    4. **Selection**: Present options to user and gather specific preferences
 -   **Output Formats**:
     -   **During conversation**: May include partial BOM JSON with identified services in `identified_services` format
     -   **At completion**: JSON object wrapped in ```json code block: `{ "requirements": "<summary>", "done": true, "bom_items": [...] }`
@@ -49,31 +47,38 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 ### 4.2. BOM Agent (Service Mapping) - **DEPRECATED**
 -   **Status**: Deprecated - functionality moved to Architect Agent (4.1).
 -   **Legacy Role**: Infrastructure Designer with incremental and final operation modes.
--   **Note**: Code remains for backward compatibility but is not invoked by orchestrator. The Architect Agent now handles service identification and BOM building directly during conversation using `azure_sku_discovery` and other Azure Pricing MCP tools.
+-   **Note**: Code remains for backward compatibility but is not invoked by orchestrator. The Architect Agent now handles service identification and BOM building directly during conversation using a static service catalog.
 -   **Migration**: All BOM generation now happens in the Architect Agent, which:
-    -   Uses `azure_sku_discovery` for real-time SKU matching
+    -   Uses static service catalog for real-time SKU matching
     -   Maintains progressive BOM in SessionData.bom_items
     -   Stores items directly without separate incremental workflow
 -   **Schema**: BOM item schema remains unchanged: `[{ "serviceName": "...", "sku": "...", "quantity": 1, "region": "...", "armRegionName": "...", "hours_per_month": 730 }]`
 
 ### 4.3. Pricing Agent (Cost Estimation)
--   **Role**: Cost Analyst.
+-   **Role**: Cost Analyst using browser automation.
 -   **Input**: BOM JSON array.
 -   **Capabilities**:
-    -   Query Azure Pricing MCP server via `MCPStreamableHTTPTool` (endpoint configured via `AZURE_PRICING_MCP_URL` environment variable, defaults to `http://localhost:8080/mcp`).
-    -   Available MCP tools:
-        -   `azure_cost_estimate`: Primary tool for calculating costs (service_name, sku_name, region, hours_per_month).
-        -   `azure_price_search`: Search retail prices with filtering.
-        -   `azure_price_compare`: Compare prices across regions or SKUs.
-        -   `azure_region_recommend`: Find cheapest regions for a service/SKU.
-        -   `azure_discover_skus`: List available SKUs for a service.
-        -   `azure_sku_discovery`: Intelligent SKU discovery with fuzzy matching.
-        -   `get_customer_discount`: Get customer discount information.
+    -   Automate the official Azure Pricing Calculator website via Playwright MCP (`https://azure.microsoft.com/en-us/pricing/calculator/`).
+    -   Available Playwright MCP tools:
+        -   `browser_navigate`: Navigate to calculator URL
+        -   `browser_snapshot`: Get page structure via accessibility tree
+        -   `browser_click`: Click elements (add service, configure options)
+        -   `browser_type`: Enter text in input fields
+        -   `browser_select_option`: Select dropdown options
+        -   `browser_fill_form`: Fill multiple form fields at once
+    -   **Calculator Automation Workflow**:
+        1. Navigate to Azure Pricing Calculator
+        2. For each BOM item: Search service → Add to estimate → Configure SKU/region/quantity
+        3. Extract pricing data from calculator output
+        4. Parse into standard pricing JSON format
+    -   **Complex Service Support**: Properly handles AKS clusters with node pools (the primary use case)
     -   Handle tool failures gracefully (fallback to $0.00 with note).
     -   Calculate total monthly cost by summing item costs (monthly_cost * quantity).
-    -   Optionally suggest cost optimization alternatives using `azure_region_recommend`.
+-   **Transport Configuration**:
+    -   Local development: Uses STDIO transport (`PLAYWRIGHT_MCP_TRANSPORT=stdio`)
+    -   Deployed environments: Uses HTTP transport via Container App (`PLAYWRIGHT_MCP_TRANSPORT=http`, `PLAYWRIGHT_MCP_URL`)
 -   **Output**: JSON object with itemized costs, total monthly estimate, savings options, and cost optimization suggestions.
-    -   **Schema** (authoritative):
+    -   **Schema** (authoritative - unchanged from previous version):
             -   `items`: array of objects `{ serviceName, sku, region, armRegionName, quantity, hours_per_month, unit_price, monthly_cost, notes? }`.
             -   `total_monthly`: number (sum of `item.monthly_cost * item.quantity`).
             -   `currency`: string (e.g., "USD").
@@ -136,7 +141,7 @@ The **Azure Pricing Assistant** is an AI-powered tool designed to automate the p
 -   **AI Service**: Azure AI Foundry Agent Service.
 -   **Language**: Python 3.10+.
 -   **External APIs**: 
-    -   Azure Pricing MCP Server (`http://localhost:8080/mcp`) - MCP server for pricing data.
+    -   Playwright MCP Server (STDIO for local, HTTP for deployed) - Browser automation for pricing calculator.
     -   Microsoft Learn MCP (`https://learn.microsoft.com/api/mcp`) - Documentation search.
 -   **Observability**: OpenTelemetry with Aspire Dashboard integration.
 
@@ -181,9 +186,9 @@ All agents are implemented using `ChatAgent` from the Microsoft Agent Framework:
 
 | Agent | Tools | Purpose |
 |-------|-------|--------|
-| Architect Agent | Microsoft Learn MCP + Azure Pricing MCP (`MCPStreamableHTTPTool`) | Gathers requirements through adaptive Q&A and builds BOM progressively using `azure_sku_discovery` |
-| BOM Agent (Deprecated) | Microsoft Learn MCP + Azure Pricing MCP (`MCPStreamableHTTPTool`) | Legacy - functionality moved to Architect Agent |
-| Pricing Agent | Azure Pricing MCP (`MCPStreamableHTTPTool`) | Calculates costs using MCP pricing tools |
+| Architect Agent | Microsoft Learn MCP (`MCPStreamableHTTPTool`) | Gathers requirements through adaptive Q&A and builds BOM progressively using static service catalog |
+| BOM Agent (Deprecated) | Microsoft Learn MCP (`MCPStreamableHTTPTool`) | Legacy - functionality moved to Architect Agent |
+| Pricing Agent | Playwright MCP (`MCPStreamableHTTPTool` or STDIO) | Automates Azure Pricing Calculator for accurate cost estimates |
 | Proposal Agent | None | Generates professional Markdown proposal |
 
 ### 5.5. Client Management
@@ -255,7 +260,8 @@ The application implements a layered observability approach:
 |----------|----------|---------|--------|
 | `AZURE_AI_PROJECT_ENDPOINT` | Yes | — | Azure AI Foundry project endpoint |
 | `AZURE_AI_MODEL_DEPLOYMENT_NAME` | No | `gpt-4o-mini` | Azure AI model deployment name |
-| `AZURE_PRICING_MCP_URL` | No | `http://localhost:8080/mcp` | Azure Pricing MCP server endpoint |
+| `PLAYWRIGHT_MCP_TRANSPORT` | No | `stdio` | Transport type: 'stdio' (local) or 'http' (deployed) |
+| `PLAYWRIGHT_MCP_URL` | No | `http://localhost:8080` | Playwright MCP HTTP endpoint (only for http transport) |
 | `FLASK_SECRET_KEY` | Yes (web) | — | Flask session secret key |
 | `PORT` | No | `8000` | Local web server port |
 | `ENABLE_OTEL` | No | `false` | Enable/disable OpenTelemetry export |
