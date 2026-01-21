@@ -103,19 +103,10 @@ async function pollBOMStatus() {
 
         const data = await response.json();
 
-        updateBOMStatusIndicator(data.bom_task_status, data.bom_task_error);
-        updateBOMLastUpdated(data.bom_last_update);
-
-        const bomUpdated = data.bom_last_update !== state.lastBomUpdate;
-        if (bomUpdated) {
-            state.lastBomUpdate = data.bom_last_update;
-
-            if (data.bom_items && data.bom_items.length > 0) {
-                updateBOM(data.bom_items, true);
-            }
+        // Update BOM if items are present
+        if (data.bom_items && data.bom_items.length > 0) {
+            updateBOM(data.bom_items, true);
         }
-
-        adjustPollingRate(data.bom_task_status);
     } catch (error) {
         console.error("BOM polling error:", error);
     }
@@ -425,16 +416,8 @@ async function sendMessage() {
             addMessage("assistant", data.response);
         }
 
-        if (data.bom_task_status) {
-            updateBOMStatusIndicator(data.bom_task_status, data.bom_task_error);
-        }
-
         if (data.bom_items && data.bom_items.length > 0) {
             updateBOM(data.bom_items, data.pricing_items || [], data.bom_updated);
-        }
-
-        if (data.bom_last_update) {
-            updateBOMLastUpdated(data.bom_last_update);
         }
 
         // Update pricing summary
@@ -1019,8 +1002,6 @@ async function resetChat() {
         state.lastPricingUpdate = null;
 
         updateBOM([], [], false);
-        updateBOMLastUpdated(null);
-        updateBOMStatusIndicator("idle", null);
         updatePricingSummary(0.0, "USD", null, "idle", null);
 
         startBOMPolling();

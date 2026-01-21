@@ -165,44 +165,20 @@ def history():
 
 @app.route('/api/bom', methods=['GET'])
 def get_bom():
-    """Get current BOM items for the session with caching headers."""
+    """Get current BOM items for the session."""
     session_id = session.get('session_id')
     
     # Return empty BOM if no session exists yet (before first message)
     if not session_id:
         return jsonify({
-            'bom_items': [],
-            'bom_task_status': 'idle',
-            'bom_last_update': None,
-            'bom_task_error': None
+            'bom_items': []
         })
     
     session_span = get_or_create_session_span(session_id)
     with trace.use_span(session_span, end_on_exit=False):
         try:
             result = run_coroutine(handlers.handle_get_bom(session_id))
-            
-            # Generate ETag from bom_last_update timestamp
-            etag = None
-            if result.get('bom_last_update'):
-                etag = f'"{hash(result["bom_last_update"])}"'
-            
-            # Check If-None-Match header for ETag-based caching
-            if etag and request.headers.get('If-None-Match') == etag:
-                return '', 304  # Not Modified
-            
-            response = jsonify(result)
-            
-            # Add caching headers
-            if etag:
-                response.headers['ETag'] = etag
-            if result.get('bom_last_update'):
-                response.headers['Last-Modified'] = result['bom_last_update']
-            
-            # Add Cache-Control to allow conditional requests
-            response.headers['Cache-Control'] = 'no-cache'
-            
-            return response
+            return jsonify(result)
         except Exception as e:
             return jsonify({'error': str(e), 'bom_items': []}), 500
 
