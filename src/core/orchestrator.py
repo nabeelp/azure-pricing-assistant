@@ -253,15 +253,25 @@ def history_to_requirements(history: List[Dict[str, str]]) -> str:
 async def run_bom_pricing_proposal(
     client: AzureAIAgentClient,
     requirements_text: str,
+    bom_items: List[Dict[str, Any]] = None,
 ) -> ProposalBundle:
-    """Execute BOM → Pricing → Proposal workflow (CLI logic reused)."""
+    """Execute Pricing → Proposal workflow using BOM from Architect Agent.
+    
+    Args:
+        client: Azure AI Agent client
+        requirements_text: Requirements text
+        bom_items: BOM items already built by Architect Agent
+    
+    Returns:
+        ProposalBundle with pricing and proposal
+    """
     pricing_agent = create_pricing_agent(client)
     proposal_agent = create_proposal_agent(client)
 
     # BOM already built by Architect Agent - workflow is now: Pricing → Proposal
     workflow = SequentialBuilder().participants([pricing_agent, proposal_agent]).build()
 
-    bom_text = "[]"  # BOM from Architect Agent (not generated here anymore)
+    bom_text = json.dumps(bom_items or [], indent=2)
     pricing_output = ""
     proposal_output = ""
     current_agent = ""
@@ -288,7 +298,7 @@ async def run_bom_pricing_proposal(
                 if not text:
                     continue
 
-                elif current_agent == "pricing_agent":
+                if current_agent == "pricing_agent":
                     pricing_output += text
                 elif current_agent == "proposal_agent":
                     proposal_output += text
@@ -330,13 +340,15 @@ async def run_bom_pricing_proposal(
 async def run_bom_pricing_proposal_stream(
     client: AzureAIAgentClient,
     requirements_text: str,
+    bom_items: List[Dict[str, Any]] = None,
 ):
     """
-    Execute BOM → Pricing → Proposal workflow with streaming progress events.
+    Execute Pricing → Proposal workflow with streaming progress events.
 
     Args:
         client: Azure AI Agent client
         requirements_text: User requirements summary
+        bom_items: BOM items already built by Architect Agent
 
     Yields:
         ProgressEvent: Progress updates throughout the workflow
@@ -349,7 +361,7 @@ async def run_bom_pricing_proposal_stream(
     # BOM already built by Architect Agent - workflow is now: Pricing → Proposal
     workflow = SequentialBuilder().participants([pricing_agent, proposal_agent]).build()
 
-    bom_text = "[]"  # BOM from Architect Agent (not generated here anymore)
+    bom_text = json.dumps(bom_items or [], indent=2)
     pricing_output = ""
     proposal_output = ""
     current_agent = ""
@@ -386,7 +398,7 @@ async def run_bom_pricing_proposal_stream(
                     continue
 
                 # Accumulate output for each agent
-                elif current_agent == "pricing_agent":
+                if current_agent == "pricing_agent":
                     pricing_output += text
                 elif current_agent == "proposal_agent":
                     proposal_output += text
