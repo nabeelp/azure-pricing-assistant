@@ -19,16 +19,16 @@ PRICING_CALCULATOR_URL = "https://azure.microsoft.com/en-us/pricing/calculator/"
 class CalculatorWorkflow:
     """
     Workflow instructions for automating the Azure Pricing Calculator.
-    
+
     This class provides documentation and guidance for agents using
     Playwright MCP to interact with the calculator.
     """
-    
+
     @staticmethod
     def get_workflow_instructions() -> str:
         """
         Return detailed workflow instructions for calculator automation.
-        
+
         These instructions are designed to be included in agent prompts
         to guide them through the automation process.
         """
@@ -104,12 +104,12 @@ For services with nested resources like AKS:
 10. Repeat for next service...
 ```
 """
-    
+
     @staticmethod
     def get_service_configuration_hints() -> Dict[str, str]:
         """
         Return service-specific configuration hints.
-        
+
         These provide guidance on how to configure different Azure services
         in the calculator.
         """
@@ -162,7 +162,7 @@ For services with nested resources like AKS:
             - No free tier available
             """,
         }
-    
+
     @staticmethod
     def get_complex_scenario_guidance() -> str:
         """
@@ -218,11 +218,11 @@ def get_calculator_instructions_for_agent() -> str:
     """
     Return comprehensive instructions for agents using Playwright MCP
     to automate the Azure Pricing Calculator.
-    
+
     This should be included in agent system prompts.
     """
     workflow = CalculatorWorkflow()
-    
+
     instructions = f"""
 # Azure Pricing Calculator Automation Guide
 
@@ -280,5 +280,5 @@ If calculator interaction fails:
 - Continue with remaining items
 - Do not stop the entire process
 """
-    
+
     return instructions

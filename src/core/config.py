@@ -31,7 +31,7 @@ def get_pricing_mcp_url() -> str:
 def get_playwright_mcp_transport() -> str:
     """
     Return the Playwright MCP transport type.
-    
+
     Returns:
         'stdio' for local development (default) or 'http' for deployed environments.
     """
@@ -41,7 +41,7 @@ def get_playwright_mcp_transport() -> str:
 def get_playwright_mcp_url() -> str:
     """
     Return the Playwright MCP HTTP endpoint.
-    
+
     Only used when transport is 'http'. For 'stdio' transport, this is ignored.
     """
     return os.getenv("PLAYWRIGHT_MCP_URL", DEFAULT_PLAYWRIGHT_MCP_URL)
