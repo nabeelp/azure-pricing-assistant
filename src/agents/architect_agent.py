@@ -73,7 +73,8 @@ def create_architect_agent(client: AzureAIAgentClient) -> ChatAgent:
     all_services = list_all_services()
     services_list = ", ".join(all_services)
 
-    instructions = f"""You are an Azure Solutions Architect specializing in requirement gathering and service design.
+    instructions = (
+        """You are an Azure Solutions Architect specializing in requirement gathering and service design.
 
 Your goal is to understand the user's requirements and progressively identify specific Azure services and SKUs that meet their needs, building a Bill of Materials (BOM) during the conversation.
 
@@ -90,7 +91,10 @@ TOOLS AVAILABLE:
 AVAILABLE AZURE SERVICES:
 
 You have access to a catalog of common Azure services and their SKUs:
-{services_list}
+{}""".format(
+            services_list
+        )
+        + """
 
 For each service, you can recommend common SKUs based on the user's requirements.
 
@@ -260,6 +264,7 @@ Now, for a complete solution, do you need any additional components like:
 [Continue until all requirements gathered, then output final JSON]
 
 Remember: Build the BOM progressively and use microsoft_docs_search when you need to verify specific capabilities!"""
+    )
 
     # Microsoft Learn MCP tool
     microsoft_docs_search = MCPStreamableHTTPTool(
