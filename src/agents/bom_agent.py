@@ -1,14 +1,10 @@
-"""BOM Agent - Generates Bill of Materials (Phase 2: Enhanced)."""
+"""BOM Agent - Generates Bill of Materials (DEPRECATED - functionality moved to Architect Agent)."""
 
 import json
 import logging
-import os
 from typing import List, Dict, Any
 from agent_framework import ChatAgent, MCPStreamableHTTPTool
 from agent_framework_azure_ai import AzureAIAgentClient
-
-# Default MCP URL if not set in environment
-DEFAULT_PRICING_MCP_URL = "http://localhost:8080/mcp"
 
 # Get logger (setup handled by application entry point)
 logger = logging.getLogger(__name__)
@@ -250,9 +246,7 @@ Return only the validation result: "VALID" if the service/SKU combination exists
 
         except Exception as e:
             logger.error(f"Error validating BOM item {idx}: {e}")
-            warnings.append(
-                f"Could not validate item {idx} ({service_name}/{sku}): {str(e)}"
-            )
+            warnings.append(f"Could not validate item {idx} ({service_name}/{sku}): {str(e)}")
             # On error, assume valid to not block workflow
             valid_items.append(item)
 
@@ -272,9 +266,9 @@ def create_bom_agent(client: AzureAIAgentClient) -> ChatAgent:
     Returns structured JSON array matching BOM schema with canonical Azure service names.
     """
     from src.shared.azure_service_names import get_service_name_hints
-    
+
     service_name_hints = get_service_name_hints()
-    
+
     instructions = f"""You are an Azure solutions architect specializing in infrastructure design and Bill of Materials (BOM) creation.
 
 Your task is to analyze the customer requirements provided in the conversation history and create a detailed Bill of Materials (BOM) as a JSON array.
@@ -465,18 +459,9 @@ Example for a web app with database:
         chat_client=client,
     )
 
-    # Get MCP URL from environment variable or use default
-    mcp_url = os.getenv("AZURE_PRICING_MCP_URL", DEFAULT_PRICING_MCP_URL)
-
-    azure_pricing_mcp = MCPStreamableHTTPTool(
-        name="Azure Pricing",
-        description="Azure Pricing MCP server providing real-time pricing data, cost estimates, region recommendations, and SKU discovery for Azure services.",
-        url=mcp_url,
-    )
-
     agent = ChatAgent(
         chat_client=client,
-        tools=[microsoft_docs_search, azure_pricing_mcp],
+        tools=[microsoft_docs_search],
         instructions=instructions,
         name="bom_agent",
     )
