@@ -231,8 +231,6 @@ async def run_question_turn(
             "history": session_data.history,
             "bom_items": session_data.bom_items or [],
             "bom_updated": bom_updated,
-            "bom_task_status": "complete",  # Architect handles directly
-            "bom_task_error": None,
         }
 
         return result
@@ -257,13 +255,13 @@ async def run_bom_pricing_proposal(
     requirements_text: str,
 ) -> ProposalBundle:
     """Execute BOM → Pricing → Proposal workflow (CLI logic reused)."""
-    bom_agent = create_bom_agent(client)
     pricing_agent = create_pricing_agent(client)
     proposal_agent = create_proposal_agent(client)
 
-    workflow = SequentialBuilder().participants([bom_agent, pricing_agent, proposal_agent]).build()
+    # BOM already built by Architect Agent - workflow is now: Pricing → Proposal
+    workflow = SequentialBuilder().participants([pricing_agent, proposal_agent]).build()
 
-    bom_output = ""
+    bom_text = "[]"  # BOM from Architect Agent (not generated here anymore)
     pricing_output = ""
     proposal_output = ""
     current_agent = ""
@@ -290,8 +288,6 @@ async def run_bom_pricing_proposal(
                 if not text:
                     continue
 
-                if current_agent == "bom_agent":
-                    bom_output += text
                 elif current_agent == "pricing_agent":
                     pricing_output += text
                 elif current_agent == "proposal_agent":
@@ -325,7 +321,7 @@ async def run_bom_pricing_proposal(
         raise
 
     return ProposalBundle(
-        bom_text=bom_output,
+        bom_text=bom_text,
         pricing_text=pricing_output,
         proposal_text=proposal_output,
     )
@@ -347,13 +343,13 @@ async def run_bom_pricing_proposal_stream(
     """
     from src.core.models import ProgressEvent
 
-    bom_agent = create_bom_agent(client)
     pricing_agent = create_pricing_agent(client)
     proposal_agent = create_proposal_agent(client)
 
-    workflow = SequentialBuilder().participants([bom_agent, pricing_agent, proposal_agent]).build()
+    # BOM already built by Architect Agent - workflow is now: Pricing → Proposal
+    workflow = SequentialBuilder().participants([pricing_agent, proposal_agent]).build()
 
-    bom_output = ""
+    bom_text = "[]"  # BOM from Architect Agent (not generated here anymore)
     pricing_output = ""
     proposal_output = ""
     current_agent = ""
@@ -390,8 +386,6 @@ async def run_bom_pricing_proposal_stream(
                     continue
 
                 # Accumulate output for each agent
-                if current_agent == "bom_agent":
-                    bom_output += text
                 elif current_agent == "pricing_agent":
                     pricing_output += text
                 elif current_agent == "proposal_agent":
@@ -426,7 +420,6 @@ async def run_bom_pricing_proposal_stream(
             event_type="workflow_complete",
             agent_name="",
             message="Workflow complete",
-            data={"bom": bom_output, "pricing": pricing_output, "proposal": proposal_output},
         )
 
     except Exception as e:

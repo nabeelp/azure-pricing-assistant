@@ -154,8 +154,9 @@ class WorkflowHandler:
                 requirements = history_to_requirements(session_data.history)
                 logger.info(f"Generating proposal for session {session_id}")
 
+                # Pass BOM items from Architect Agent to proposal generation
                 bundle: ProposalBundle = await run_bom_pricing_proposal(
-                    context.client, requirements
+                    context.client, requirements, session_data.bom_items or []
                 )
 
                 logger.info(

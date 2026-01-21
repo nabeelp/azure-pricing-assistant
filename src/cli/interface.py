@@ -71,7 +71,10 @@ class CLIInterface(PricingInterface):
             
             requirements = history_to_requirements(session_data.history)
             
-            async for event in run_bom_pricing_proposal_stream(ctx.client, requirements):
+            # Pass BOM items from Architect Agent to proposal generation
+            async for event in run_bom_pricing_proposal_stream(
+                ctx.client, requirements, session_data.bom_items or []
+            ):
                 yield {
                     "event_type": event.event_type,
                     "agent_name": event.agent_name,
