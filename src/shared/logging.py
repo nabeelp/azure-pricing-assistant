@@ -24,6 +24,7 @@ class TraceContextFilter(logging.Filter):
     """Attach trace/span ids to records so they can be correlated across sinks."""
 
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
+        """Populate trace context fields on the log record."""
         if get_current_span is None:
             record.trace_id = "-"
             record.span_id = "-"

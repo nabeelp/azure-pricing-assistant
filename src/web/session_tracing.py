@@ -42,6 +42,7 @@ _SESSION_SPANS: Dict[str, _SessionSpan] = {}
 
 
 def get_or_create_session_span(session_id: str) -> Any:
+    """Return an existing session span or create a new one."""
     if trace is None:
         raise RuntimeError("OpenTelemetry is not available")
 
@@ -59,6 +60,7 @@ def get_or_create_session_span(session_id: str) -> Any:
 
 
 def end_session_span(session_id: str) -> None:
+    """End and remove the tracked session span, if present."""
     existing = _SESSION_SPANS.pop(session_id, None)
     if existing is None:
         return

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def _stage_span(stage_name: str, *, session_id: Optional[str] = None, **attrs: Any):
+    """Create a traced span for a workflow stage with shared attributes."""
     tracer = get_tracer(instrumenting_module_name="azure_pricing_assistant.stages")
     attributes: Dict[str, Any] = {
         "workflow.stage": stage_name,

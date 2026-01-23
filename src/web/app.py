@@ -108,6 +108,7 @@ def generate_stream():
             yield from _run_stream_generator(session_id)
 
     def _run_stream_generator(session_id: str):
+        """Run the async proposal stream in a dedicated event loop."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
