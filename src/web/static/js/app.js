@@ -81,7 +81,7 @@ function startBOMPolling() {
     stopBOMPolling();
     state.bomPollingInterval = window.setInterval(
         pollBOMStatus,
-        state.currentPollingRate,
+        state.currentBomPollingRate,
     );
     pollBOMStatus();
 }
