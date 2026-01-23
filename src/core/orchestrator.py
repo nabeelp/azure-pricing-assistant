@@ -46,6 +46,38 @@ def _stage_span(stage_name: str, *, session_id: Optional[str] = None, **attrs: A
     )
 
 
+def _merge_bom_items(
+    existing_items: List[Dict[str, Any]],
+    new_items: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge BOM items by service/sku/region, preferring new values."""
+    def item_key(item: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        return (
+            item.get("serviceName"),
+            item.get("sku"),
+            item.get("armRegionName") or item.get("region"),
+        )
+
+    merged: List[Dict[str, Any]] = []
+    index: Dict[Tuple[Optional[str], Optional[str], Optional[str]], int] = {}
+
+    for item in existing_items:
+        key = item_key(item)
+        index[key] = len(merged)
+        merged.append(dict(item))
+
+    for item in new_items:
+        key = item_key(item)
+        if key in index:
+            existing = merged[index[key]]
+            existing.update(item)
+        else:
+            index[key] = len(merged)
+            merged.append(dict(item))
+
+    return merged
+
+
 async def _run_pricing_task_background(
     client: AzureAIAgentClient,
     session_store: InMemorySessionStore,
