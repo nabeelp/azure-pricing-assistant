@@ -73,14 +73,8 @@ class SessionData:
     thread: Any
     history: List[dict]
     turn_count: int = 0  # Track conversation turns for 20-turn limit
-    bom_items: List[Dict[str, Any]] = None  # Incremental BOM items built during conversation
+    bom_items: List[Dict[str, Any]] = None  # BOM items built by Architect Agent during conversation
     proposal: Optional[ProposalBundle] = None  # Stored proposal after generation
-    
-    # BOM task lifecycle tracking
-    bom_task_status: str = "idle"  # Values: idle, queued, processing, complete, error
-    bom_task_error: Optional[str] = None  # Error message from failed BOM updates
-    bom_last_update: Optional[datetime] = None  # Last BOM modification timestamp
-    bom_task_handle: Optional[asyncio.Task] = None  # Task reference for cancellation
     
     # Pricing task lifecycle tracking
     pricing_items: List[Dict[str, Any]] = None  # Incremental pricing items calculated during conversation

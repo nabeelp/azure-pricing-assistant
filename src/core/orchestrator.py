@@ -17,10 +17,8 @@ from agent_framework_azure_ai import AzureAIAgentClient
 from src.agents import (
     create_architect_agent,
     extract_partial_bom_from_response,
-    create_bom_agent,
     create_pricing_agent,
     create_proposal_agent,
-    create_question_agent,  # Legacy - will be removed
 )
 from src.agents.pricing_agent import parse_pricing_response
 from src.shared.errors import WorkflowError
@@ -33,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def _stage_span(stage_name: str, *, session_id: Optional[str] = None, **attrs: Any):
+    """Create a traced span for a workflow stage with shared attributes."""
     tracer = get_tracer(instrumenting_module_name="azure_pricing_assistant.stages")
     attributes: Dict[str, Any] = {
         "workflow.stage": stage_name,
@@ -47,83 +46,36 @@ def _stage_span(stage_name: str, *, session_id: Optional[str] = None, **attrs: A
     )
 
 
-async def _run_bom_task_background(
-    client: AzureAIAgentClient,
-    session_store: InMemorySessionStore,
-    session_id: str,
-    recent_context: str,
-) -> None:
-    """
-    Background task wrapper for run_incremental_bom_update.
-    
-    Handles state transitions and error handling for async BOM updates.
-    Updates session state with task status and results.
-    
-    Args:
-        client: Azure AI Agent client
-        session_store: Session store
-        session_id: Session identifier
-        recent_context: Recent conversation context
-    """
-    session_data = session_store.get(session_id)
-    if not session_data:
-        logger.warning(f"No session data found for {session_id} in background task")
-        return
-    
-    # Transition to processing state
-    session_data.bom_task_status = "processing"
-    session_data.bom_task_error = None
-    session_store.set(session_id, session_data)
-    
-    try:
-        # Run BOM update with 30s timeout
-        bom_result = await asyncio.wait_for(
-            run_incremental_bom_update(client, session_store, session_id, recent_context),
-            timeout=30.0
+def _merge_bom_items(
+    existing_items: List[Dict[str, Any]],
+    new_items: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge BOM items by service/sku/region, preferring new values."""
+    def item_key(item: Dict[str, Any]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        return (
+            item.get("serviceName"),
+            item.get("sku"),
+            item.get("armRegionName") or item.get("region"),
         )
-        
-        # Update session with results
-        session_data = session_store.get(session_id)
-        if session_data:
-            session_data.bom_task_status = "complete"
-            session_data.bom_last_update = datetime.now()
-            session_store.set(session_id, session_data)
-            
-            logger.info(f"Background BOM task complete for session {session_id}")
-    
-    except asyncio.TimeoutError:
-        logger.error(f"BOM task timeout for session {session_id}", exc_info=True)
-        increment_errors("bom_timeout", session_id=session_id)
-        session_data = session_store.get(session_id)
-        if session_data:
-            session_data.bom_task_status = "error"
-            session_data.bom_task_error = "BOM generation timed out after 30 seconds"
-            session_store.set(session_id, session_data)
-    
-    except asyncio.CancelledError:
-        logger.info(f"BOM task cancelled for session {session_id}")
-        session_data = session_store.get(session_id)
-        if session_data:
-            session_data.bom_task_status = "idle"
-            session_store.set(session_id, session_data)
-        raise
-    
-    except Exception as e:
-        # Log full traceback for debugging
-        error_traceback = traceback.format_exc()
-        logger.error(
-            f"BOM task error for session {session_id}: {e}\n{error_traceback}",
-            exc_info=True,
-            extra={"session_id": session_id, "error_type": type(e).__name__}
-        )
-        increment_errors("bom_task_failure", session_id=session_id)
-        
-        session_data = session_store.get(session_id)
-        if session_data:
-            session_data.bom_task_status = "error"
-            # Sanitize error message for UI (no traceback)
-            session_data.bom_task_error = f"BOM generation failed: {str(e)}"
-            session_store.set(session_id, session_data)
+
+    merged: List[Dict[str, Any]] = []
+    index: Dict[Tuple[Optional[str], Optional[str], Optional[str]], int] = {}
+
+    for item in existing_items:
+        key = item_key(item)
+        index[key] = len(merged)
+        merged.append(dict(item))
+
+    for item in new_items:
+        key = item_key(item)
+        if key in index:
+            existing = merged[index[key]]
+            existing.update(item)
+        else:
+            index[key] = len(merged)
+            merged.append(dict(item))
+
+    return merged
 
 
 async def _run_pricing_task_background(
@@ -227,8 +179,6 @@ async def run_question_turn(
     session_store: InMemorySessionStore,
     session_id: str,
     user_message: str,
-    enable_incremental_bom: bool = False,  # Deprecated - architect handles BOM directly
-    run_bom_in_background: bool = False,  # Deprecated
 ) -> Dict[str, Any]:
     """Run a single architect-agent turn and persist thread/history.
     
@@ -239,8 +189,6 @@ async def run_question_turn(
         session_store: Session store
         session_id: Session identifier
         user_message: User's message
-        enable_incremental_bom: Deprecated - architect handles BOM directly
-        run_bom_in_background: Deprecated - not used
 
     Returns:
         Dict with response, is_done, requirements_summary, history, and bom_items
@@ -316,8 +264,6 @@ async def run_question_turn(
             "history": session_data.history,
             "bom_items": session_data.bom_items or [],
             "bom_updated": bom_updated,
-            "bom_task_status": "complete",  # Architect handles directly
-            "bom_task_error": None,
         }
 
         return result
@@ -340,15 +286,25 @@ def history_to_requirements(history: List[Dict[str, str]]) -> str:
 async def run_bom_pricing_proposal(
     client: AzureAIAgentClient,
     requirements_text: str,
+    bom_items: List[Dict[str, Any]] = None,
 ) -> ProposalBundle:
-    """Execute BOM → Pricing → Proposal workflow (CLI logic reused)."""
-    bom_agent = create_bom_agent(client)
+    """Execute Pricing → Proposal workflow using BOM from Architect Agent.
+    
+    Args:
+        client: Azure AI Agent client
+        requirements_text: Requirements text
+        bom_items: BOM items already built by Architect Agent
+    
+    Returns:
+        ProposalBundle with pricing and proposal
+    """
     pricing_agent = create_pricing_agent(client)
     proposal_agent = create_proposal_agent(client)
 
-    workflow = SequentialBuilder().participants([bom_agent, pricing_agent, proposal_agent]).build()
+    # BOM already built by Architect Agent - workflow is now: Pricing → Proposal
+    workflow = SequentialBuilder().participants([pricing_agent, proposal_agent]).build()
 
-    bom_output = ""
+    bom_text = json.dumps(bom_items or [], indent=2)
     pricing_output = ""
     proposal_output = ""
     current_agent = ""
@@ -375,9 +331,7 @@ async def run_bom_pricing_proposal(
                 if not text:
                     continue
 
-                if current_agent == "bom_agent":
-                    bom_output += text
-                elif current_agent == "pricing_agent":
+                if current_agent == "pricing_agent":
                     pricing_output += text
                 elif current_agent == "proposal_agent":
                     proposal_output += text
@@ -410,7 +364,7 @@ async def run_bom_pricing_proposal(
         raise
 
     return ProposalBundle(
-        bom_text=bom_output,
+        bom_text=bom_text,
         pricing_text=pricing_output,
         proposal_text=proposal_output,
     )
@@ -419,26 +373,28 @@ async def run_bom_pricing_proposal(
 async def run_bom_pricing_proposal_stream(
     client: AzureAIAgentClient,
     requirements_text: str,
+    bom_items: List[Dict[str, Any]] = None,
 ):
     """
-    Execute BOM → Pricing → Proposal workflow with streaming progress events.
+    Execute Pricing → Proposal workflow with streaming progress events.
 
     Args:
         client: Azure AI Agent client
         requirements_text: User requirements summary
+        bom_items: BOM items already built by Architect Agent
 
     Yields:
         ProgressEvent: Progress updates throughout the workflow
     """
     from src.core.models import ProgressEvent
 
-    bom_agent = create_bom_agent(client)
     pricing_agent = create_pricing_agent(client)
     proposal_agent = create_proposal_agent(client)
 
-    workflow = SequentialBuilder().participants([bom_agent, pricing_agent, proposal_agent]).build()
+    # BOM already built by Architect Agent - workflow is now: Pricing → Proposal
+    workflow = SequentialBuilder().participants([pricing_agent, proposal_agent]).build()
 
-    bom_output = ""
+    bom_text = json.dumps(bom_items or [], indent=2)
     pricing_output = ""
     proposal_output = ""
     current_agent = ""
@@ -475,9 +431,7 @@ async def run_bom_pricing_proposal_stream(
                     continue
 
                 # Accumulate output for each agent
-                if current_agent == "bom_agent":
-                    bom_output += text
-                elif current_agent == "pricing_agent":
+                if current_agent == "pricing_agent":
                     pricing_output += text
                 elif current_agent == "proposal_agent":
                     proposal_output += text
@@ -511,7 +465,6 @@ async def run_bom_pricing_proposal_stream(
             event_type="workflow_complete",
             agent_name="",
             message="Workflow complete",
-            data={"bom": bom_output, "pricing": pricing_output, "proposal": proposal_output},
         )
 
     except Exception as e:
@@ -526,233 +479,8 @@ async def run_bom_pricing_proposal_stream(
         cm.__exit__(None, None, None)
 
 
-async def run_incremental_bom_update(
-    client: AzureAIAgentClient,
-    session_store: InMemorySessionStore,
-    session_id: str,
-    recent_context: str,
-) -> Dict[str, Any]:
-    """
-    Run BOM agent to build/update BOM items incrementally.
-
-    Args:
-        client: Azure AI Agent client
-        session_store: Session store for persisting BOM items
-        session_id: Current session ID
-        recent_context: Recent conversation context to analyze
-
-    Returns:
-        Dict with new/updated BOM items
-    """
-    from src.agents.bom_agent import parse_bom_response
-
-    session_data = session_store.get(session_id)
-    if not session_data:
-        logger.warning(f"No session data found for {session_id}")
-        return {"bom_items": [], "error": "No session found"}
-
-    # Create BOM agent
-    bom_agent = create_bom_agent(client)
-    thread = bom_agent.get_new_thread()
-
-    # Build prompt for incremental BOM update
-    existing_bom = session_data.bom_items or []
-    prompt = f"""Based on the following conversation context, analyze and create BOM items for any Azure services discussed.
-
-EXISTING BOM ITEMS:
-{json.dumps(existing_bom, indent=2) if existing_bom else "None yet"}
-
-RECENT CONVERSATION CONTEXT:
-{recent_context}
-
-INSTRUCTIONS:
-- If this is a new service/component not in the existing BOM, create a new BOM item for it
-- If this updates an existing service (e.g., changing SKU), create the updated BOM item
-- Only create BOM items for services that have enough information (service type, region, scale)
-- Return ONLY the new or updated BOM items as a JSON array
-- If no new BOM items can be created yet, return an empty array: []
-
-Remember the schema:
-[
-  {{
-    "serviceName": "Service Name",
-    "sku": "SKU",
-    "quantity": 1,
-    "region": "Region Name",
-    "armRegionName": "regioncode",
-    "hours_per_month": 730
-  }}
-]"""
-
-    # Run BOM agent
-    response_text = ""
-    try:
-        async for update in bom_agent.run_stream(prompt, thread=thread):
-            if update.text:
-                response_text += update.text
-
-        logger.info(f"BOM agent response: {response_text[:200]}...")
-
-        # Parse BOM response (allow empty arrays in incremental mode)
-        new_bom_items = parse_bom_response(response_text, allow_empty=True)
-
-        # Merge with existing BOM (update or append)
-        merged_bom = _merge_bom_items(existing_bom, new_bom_items)
-
-        # Update session
-        session_data.bom_items = merged_bom
-        session_store.set(session_id, session_data)
-
-        logger.info(f"Updated BOM: {len(merged_bom)} total items")
-
-        return {
-            "bom_items": merged_bom,
-            "new_items": new_bom_items,
-        }
-
-    except Exception as e:
-        logger.error(f"Error in incremental BOM update: {e}")
-        return {"bom_items": existing_bom, "error": str(e)}
-
-
-def _merge_bom_items(
-    existing: List[Dict[str, Any]], new: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
-    """
-    Merge new BOM items with existing ones.
-
-    If a new item matches an existing one (same serviceName and region),
-    update the existing item. Otherwise, append the new item.
-
-    Args:
-        existing: Existing BOM items
-        new: New BOM items to merge
-
-    Returns:
-        Merged list of BOM items
-    """
-    if not new:
-        return existing
-
-    # Create a copy of existing items
-    merged = list(existing)
-
-    for new_item in new:
-        # Find matching item (same service and region)
-        match_idx = None
-        for idx, existing_item in enumerate(merged):
-            if existing_item.get("serviceName") == new_item.get(
-                "serviceName"
-            ) and existing_item.get("region") == new_item.get("region"):
-                match_idx = idx
-                break
-
-        if match_idx is not None:
-            # Update existing item
-            logger.info(
-                f"Updating BOM item: {new_item.get('serviceName')} " f"in {new_item.get('region')}"
-            )
-            merged[match_idx] = new_item
-        else:
-            # Add new item
-            logger.info(
-                f"Adding BOM item: {new_item.get('serviceName')} " f"in {new_item.get('region')}"
-            )
-            merged.append(new_item)
-
-    return merged
-
-
-def should_trigger_bom_update(
-    response_text: str, turn_count: int, conversation_history: List[Dict[str, str]] = None
-) -> bool:
-    """
-    Determine if the question agent's response indicates enough info for BOM update.
-
-    Triggers BOM update when:
-    - User has provided service details (mentions specific Azure services in history)
-    - User has specified region and scale
-    - Every 3 turns to catch accumulated information
-    - When conversation is marked as done
-
-    Args:
-        response_text: Question agent's response
-        turn_count: Current turn count
-        conversation_history: Full conversation history (optional)
-
-    Returns:
-        True if BOM should be updated
-    """
-    # Check if done
-    is_done, _ = parse_question_completion(response_text)
-    if is_done:
-        return True
-
-    # Check for service/configuration mentions in conversation history
-    service_indicators = [
-        "app service",
-        "web app",
-        "web",
-        "sql",
-        "database",
-        "storage",
-        "virtual machine",
-        "vm",
-        "kubernetes",
-        "aks",
-        "function",
-        "cosmos",
-        "redis",
-        "service bus",
-        "event hub",
-        "machine learning",
-        "synapse",
-        "sku",
-        "tier",
-        "region",
-        "scale",
-    ]
-
-    has_service_info = False
-
-    # Check agent response
-    text_lower = response_text.lower()
-    has_service_info = any(indicator in text_lower for indicator in service_indicators)
-
-    # Also check conversation history if provided
-    if not has_service_info and conversation_history:
-        # Check user messages for service mentions
-        for msg in conversation_history:
-            if msg.get("role") == "user":
-                msg_lower = msg.get("content", "").lower()
-                if any(indicator in msg_lower for indicator in service_indicators):
-                    has_service_info = True
-                    break
-
-    # Trigger every 3 turns OR when we detect service configuration
-    should_trigger = (turn_count > 0 and turn_count % 3 == 0) or has_service_info
-
-    if should_trigger:
-        logger.info(
-            f"Triggering BOM update at turn {turn_count}, has_service_info={has_service_info}"
-        )
-
-    return should_trigger
-
-
 async def reset_session(session_store: InMemorySessionStore, session_id: str) -> None:
-    """Clear session state and cancel any in-progress BOM tasks."""
-    session_data = session_store.get(session_id)
-    
-    # Cancel any in-progress BOM task
-    if session_data and session_data.bom_task_handle and not session_data.bom_task_handle.done():
-        logger.info(f"Cancelling BOM task during session reset for {session_id}")
-        session_data.bom_task_handle.cancel()
-        try:
-            await session_data.bom_task_handle
-        except asyncio.CancelledError:
-            pass
-    
+    """Clear session state."""
     session_store.delete(session_id)
 
 

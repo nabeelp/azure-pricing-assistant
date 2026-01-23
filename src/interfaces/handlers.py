@@ -60,7 +60,6 @@ class WorkflowHandler:
         context: InterfaceContext,
         session_id: str,
         message: str,
-        run_bom_in_background: bool = False,  # Deprecated - architect handles BOM directly
     ) -> Dict[str, Any]:
         """
         Process a single chat turn with the Architect Agent.
@@ -72,7 +71,6 @@ class WorkflowHandler:
             context: InterfaceContext with initialized client and session store
             session_id: Unique identifier for the chat session
             message: User's input message
-            run_bom_in_background: Deprecated - architect handles BOM directly
 
         Returns:
             Dictionary with:
@@ -100,7 +98,6 @@ class WorkflowHandler:
                     context.session_store,
                     session_id,
                     message,
-                    run_bom_in_background=run_bom_in_background,
                 )
                 logger.debug(
                     f"Chat turn complete for {session_id}: is_done={result.get('is_done')}"
@@ -157,8 +154,9 @@ class WorkflowHandler:
                 requirements = history_to_requirements(session_data.history)
                 logger.info(f"Generating proposal for session {session_id}")
 
+                # Pass BOM items from Architect Agent to proposal generation
                 bundle: ProposalBundle = await run_bom_pricing_proposal(
-                    context.client, requirements
+                    context.client, requirements, session_data.bom_items or []
                 )
 
                 logger.info(

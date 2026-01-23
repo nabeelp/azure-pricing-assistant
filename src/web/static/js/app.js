@@ -43,6 +43,7 @@ const dom = {
 };
 
 function cacheDom() {
+    // Capture DOM references once to avoid repeated lookups during UI updates.
     dom.chatContainer = document.getElementById("chatContainer");
     dom.proposalSection = document.getElementById("proposalSection");
     dom.proposalContent = document.getElementById("proposalContent");
@@ -71,6 +72,7 @@ function cacheDom() {
 }
 
 function setHidden(element, hidden) {
+    // Centralize visibility toggling to keep UI state transitions consistent.
     if (!element) {
         return;
     }
@@ -78,15 +80,17 @@ function setHidden(element, hidden) {
 }
 
 function startBOMPolling() {
+    // Keep BOM display synced while backend work completes asynchronously.
     stopBOMPolling();
     state.bomPollingInterval = window.setInterval(
         pollBOMStatus,
-        state.currentPollingRate,
+        state.currentBomPollingRate,
     );
     pollBOMStatus();
 }
 
 function stopBOMPolling() {
+    // Prevent duplicate timers when navigating or resetting sessions.
     if (state.bomPollingInterval) {
         clearInterval(state.bomPollingInterval);
         state.bomPollingInterval = null;
@@ -94,6 +98,7 @@ function stopBOMPolling() {
 }
 
 async function pollBOMStatus() {
+    // Fetch the latest BOM snapshot for this session.
     try {
         const response = await fetch("/api/bom");
 
@@ -103,107 +108,17 @@ async function pollBOMStatus() {
 
         const data = await response.json();
 
-        updateBOMStatusIndicator(data.bom_task_status, data.bom_task_error);
-        updateBOMLastUpdated(data.bom_last_update);
-
-        const bomUpdated = data.bom_last_update !== state.lastBomUpdate;
-        if (bomUpdated) {
-            state.lastBomUpdate = data.bom_last_update;
-
-            if (data.bom_items && data.bom_items.length > 0) {
-                updateBOM(data.bom_items, true);
-            }
+        // Update BOM if items are present
+        if (data.bom_items && data.bom_items.length > 0) {
+            updateBOM(data.bom_items, true);
         }
-
-        adjustPollingRate(data.bom_task_status);
     } catch (error) {
         console.error("BOM polling error:", error);
     }
 }
 
-function updateBOMStatusIndicator(status, error) {
-    if (!dom.bomStatusIndicator || !dom.bomStatusText) {
-        return;
-    }
-
-    dom.bomStatusIndicator.className =
-        "inline-flex h-2.5 w-2.5 rounded-full bg-slate-300";
-
-    switch (status) {
-        case "processing":
-        case "queued":
-            dom.bomStatusIndicator.classList.add(
-                "bg-amber-500",
-                "animate-pulse",
-            );
-            dom.bomStatusText.textContent = "Analyzing services...";
-            break;
-        case "error":
-            dom.bomStatusIndicator.classList.add("bg-rose-500");
-            dom.bomStatusText.textContent = error
-                ? `Error: ${error}`
-                : "Error processing BOM";
-            break;
-        case "complete":
-            dom.bomStatusIndicator.classList.add("bg-emerald-500");
-            dom.bomStatusText.textContent = "Services identified from conversation";
-            break;
-        case "idle":
-        default:
-            dom.bomStatusText.textContent = "Services identified from conversation";
-            break;
-    }
-}
-
-function updateBOMLastUpdated(lastUpdated) {
-    if (!dom.bomLastUpdated) {
-        return;
-    }
-
-    if (!lastUpdated) {
-        dom.bomLastUpdated.textContent = "Last updated: —";
-        return;
-    }
-
-    const parsed = new Date(lastUpdated);
-    if (Number.isNaN(parsed.getTime())) {
-        dom.bomLastUpdated.textContent = "Last updated: —";
-        return;
-    }
-
-    dom.bomLastUpdated.textContent = `Last updated: ${parsed.toLocaleString()}`;
-}
-
-function adjustPollingRate(status) {
-    let newRate;
-
-    switch (status) {
-        case "processing":
-        case "queued":
-            newRate = 1000;
-            break;
-        case "idle":
-        case "complete":
-        case "error":
-            newRate = 5000;
-            break;
-        default:
-            newRate = 3000;
-    }
-
-    if (Math.abs(newRate - state.currentBomPollingRate) >= 500) {
-        state.currentBomPollingRate = newRate;
-        if (state.bomPollingInterval) {
-            clearInterval(state.bomPollingInterval);
-            state.bomPollingInterval = window.setInterval(
-                pollBOMStatus,
-                state.currentBomPollingRate,
-            );
-        }
-    }
-}
-
 function startPricingPolling() {
+    // Keep pricing totals and status current while pricing tasks run.
     stopPricingPolling();
     state.pricingPollingInterval = window.setInterval(
         pollPricingStatus,
@@ -213,6 +128,7 @@ function startPricingPolling() {
 }
 
 function stopPricingPolling() {
+    // Avoid unnecessary network chatter when the UI is inactive.
     if (state.pricingPollingInterval) {
         clearInterval(state.pricingPollingInterval);
         state.pricingPollingInterval = null;
@@ -220,6 +136,7 @@ function stopPricingPolling() {
 }
 
 async function pollPricingStatus() {
+    // Pull pricing totals and task status for progressive updates.
     try {
         const response = await fetch("/api/pricing");
 
@@ -244,6 +161,7 @@ async function pollPricingStatus() {
 }
 
 function updatePricingSummary(total, currency, date, status, error) {
+    // Render the latest pricing summary in the sidebar.
     if (dom.pricingTotal) {
         dom.pricingTotal.textContent = `$${total.toFixed(2)}`;
     }
@@ -275,6 +193,7 @@ function updatePricingSummary(total, currency, date, status, error) {
 }
 
 function adjustPricingPollingRate(status) {
+    // Poll faster during active pricing and slow down once settled.
     let newRate;
 
     switch (status) {
@@ -304,6 +223,7 @@ function adjustPricingPollingRate(status) {
 }
 
 function showErrorBanner(message) {
+    // Surface transient errors without blocking the chat flow.
     if (!dom.errorBanner || !dom.errorBannerText) {
         return;
     }
@@ -322,6 +242,7 @@ function showErrorBanner(message) {
 }
 
 function hideErrorBanner() {
+    // Hide the error banner after timeout or user dismissal.
     if (!dom.errorBanner) {
         return;
     }
@@ -330,6 +251,7 @@ function hideErrorBanner() {
 }
 
 function addErrorMessage(title, detail) {
+    // Insert an error message into the chat stream for context.
     if (!dom.chatContainer) {
         return;
     }
@@ -373,6 +295,7 @@ function addErrorMessage(title, detail) {
 }
 
 function retryLastMessage() {
+    // Re-queue the last user message for retry after a failure.
     if (state.lastUserMessage && dom.userInput) {
         dom.userInput.value = state.lastUserMessage;
         sendMessage();
@@ -380,6 +303,7 @@ function retryLastMessage() {
 }
 
 async function sendMessage() {
+    // Send the user's message and update UI state based on response.
     if (!dom.userInput || !dom.sendBtn) {
         return;
     }
@@ -425,16 +349,8 @@ async function sendMessage() {
             addMessage("assistant", data.response);
         }
 
-        if (data.bom_task_status) {
-            updateBOMStatusIndicator(data.bom_task_status, data.bom_task_error);
-        }
-
         if (data.bom_items && data.bom_items.length > 0) {
             updateBOM(data.bom_items, data.pricing_items || [], data.bom_updated);
-        }
-
-        if (data.bom_last_update) {
-            updateBOMLastUpdated(data.bom_last_update);
         }
 
         // Update pricing summary
@@ -465,6 +381,7 @@ async function sendMessage() {
 }
 
 function appendTextWithLineBreaks(container, text) {
+    // Preserve line breaks when rendering summaries into HTML containers.
     const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {
         const span = document.createElement("span");
@@ -477,6 +394,7 @@ function appendTextWithLineBreaks(container, text) {
 }
 
 function displayRequirementsSummary(summary) {
+    // Show the final requirements summary and prompt proposal generation.
     if (!dom.chatContainer || !dom.doneBanner || !dom.sendBtn || !dom.generateBtn) {
         return;
     }
@@ -518,12 +436,14 @@ function displayRequirementsSummary(summary) {
 }
 
 function resetProgressTracking() {
+    // Clear progress UI state before generating a new proposal.
     dom.progressSteps = {};
     dom.progressIndicator = null;
     dom.finalProposal = null;
 }
 
 function getProgressStepClasses(status) {
+    // Map status to consistent styling for progress steps.
     const baseClasses =
         "flex items-center gap-3 rounded-xl border-2 bg-white p-3 transition";
 
@@ -540,6 +460,7 @@ function getProgressStepClasses(status) {
 }
 
 function createProgressStep(id, iconText, titleText, agentName) {
+    // Build a single progress card to visualize agent status.
     const step = document.createElement("div");
     step.className = getProgressStepClasses("idle");
     step.id = id;
@@ -569,6 +490,7 @@ function createProgressStep(id, iconText, titleText, agentName) {
 }
 
 function createProposalSkeleton() {
+    // Render the proposal progress skeleton before streaming results.
     if (!dom.proposalContent) {
         return;
     }
@@ -616,6 +538,7 @@ function createProposalSkeleton() {
 }
 
 function createErrorPanel(title, detail, actions) {
+    // Construct a reusable error panel with optional action buttons.
     const wrapper = document.createElement("div");
     wrapper.className =
         "flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900 shadow-sm";
@@ -663,6 +586,7 @@ function createErrorPanel(title, detail, actions) {
 }
 
 async function generateProposal() {
+    // Start the proposal workflow stream and update progress UI.
     if (!dom.generateBtn || !dom.proposalSection || !dom.chatContainer || !dom.bomSection) {
         return;
     }
@@ -809,6 +733,7 @@ async function generateProposal() {
 }
 
 function updateProgressStep(agentName, status, statusText) {
+    // Update the status UI for a specific agent step.
     const step = dom.progressSteps[agentName];
     if (!step) {
         return;
@@ -836,6 +761,7 @@ function updateProgressStep(agentName, status, statusText) {
 }
 
 function addMessage(role, content) {
+    // Append a chat bubble to the conversation stream.
     if (!dom.chatContainer) {
         return;
     }
@@ -862,6 +788,7 @@ function addMessage(role, content) {
 }
 
 function updateBOM(bomItems, pricingItems, isNewUpdate) {
+    // Render BOM items and any available pricing details.
     if (!dom.bomContent) {
         return;
     }
@@ -967,6 +894,7 @@ function updateBOM(bomItems, pricingItems, isNewUpdate) {
 }
 
 async function resetChat() {
+    // Reset the session state and UI to a clean slate.
     if (!confirm("Are you sure you want to start a new session? All progress will be lost.")) {
         return;
     }
@@ -1019,8 +947,6 @@ async function resetChat() {
         state.lastPricingUpdate = null;
 
         updateBOM([], [], false);
-        updateBOMLastUpdated(null);
-        updateBOMStatusIndicator("idle", null);
         updatePricingSummary(0.0, "USD", null, "idle", null);
 
         startBOMPolling();
@@ -1037,6 +963,7 @@ async function resetChat() {
 }
 
 function backToChat() {
+    // Return to chat view from proposal screens.
     if (dom.proposalSection) {
         dom.proposalSection.classList.add("hidden");
     }
@@ -1046,11 +973,13 @@ function backToChat() {
 }
 
 function handleFormSubmit(event) {
+    // Intercept form submission to send chat message via JS.
     event.preventDefault();
     sendMessage();
 }
 
 function attachEventHandlers() {
+    // Wire up all UI interactions to handlers.
     if (dom.chatForm) {
         dom.chatForm.addEventListener("submit", handleFormSubmit);
     }
@@ -1082,6 +1011,7 @@ function attachEventHandlers() {
 }
 
 function initializeChat() {
+    // Initialize UI state and start polling for server updates.
     cacheDom();
     attachEventHandlers();
     addMessage("assistant", "Hello!\nI'm here to help you price an Azure solution. You can start by telling me the requirements, or give me a transcript from a customer meeting.");
